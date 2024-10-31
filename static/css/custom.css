@@ -1,0 +1,61 @@
+/* Custom styles to complement Bootstrap theme */
+
+/* Dashboard cards */
+.card {
+    border: none;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Progress bars */
+.progress {
+    height: 8px;
+    border-radius: 4px;
+}
+
+/* Task items */
+.task-item {
+    padding: 0.5rem;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.task-item:hover {
+    background-color: rgba(var(--bs-secondary-rgb), 0.1);
+}
+
+/* Pomodoro Timer */
+#pomodoroTimer .display-4 {
+    font-family: monospace;
+    font-weight: 600;
+}
+
+/* Habit streaks */
+.habit-streak {
+    padding: 1rem;
+    border-radius: 4px;
+    background-color: rgba(var(--bs-dark-rgb), 0.2);
+}
+
+/* Quotes */
+.quote {
+    font-size: 0.9rem;
+    color: var(--bs-secondary);
+}
+
+/* Greeting text */
+.greeting {
+    font-size: 1.8rem;
+    font-weight: 600;
+    color: var(--bs-primary);
+}
+
+/* Badge customization */
+.badge {
+    font-weight: 500;
+    padding: 0.4em 0.8em;
+}
+
+/* Chart containers */
+canvas {
+    max-height: 300px;
+}
