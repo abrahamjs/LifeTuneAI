@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">My Habits</h5>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newHabitModal">
+                    <i class="bi bi-plus"></i> New Habit
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="habitsList"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Habit Modal -->
+<div class="modal fade" id="newHabitModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create New Habit</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="newHabitForm">
+                    <div class="mb-3">
+                        <label for="habitTitle" class="form-label">Title</label>
+                        <input type="text" class="form-control" id="habitTitle" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="habitDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="habitDescription" rows="3"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="habitFrequency" class="form-label">Frequency</label>
+                        <select class="form-control" id="habitFrequency">
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveHabit">Create Habit</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/habits.js"></script>
+{% endblock %}
