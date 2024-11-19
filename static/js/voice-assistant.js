@@ -3,10 +3,36 @@ class VoiceAssistant {
         this.recognition = null;
         this.synthesis = window.speechSynthesis;
         this.isListening = false;
+        this.mediaRecorder = null;
+        this.audioChunks = [];
         this.setupSpeechRecognition();
     }
 
     setupSpeechRecognition() {
+        // Setup for Whisper-based recording
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    this.mediaRecorder = new MediaRecorder(stream);
+                    this.mediaRecorder.ondataavailable = (event) => {
+                        this.audioChunks.push(event.data);
+                    };
+                    this.mediaRecorder.onstop = async () => {
+                        const audioBlob = new Blob(this.audioChunks, { type: 'audio/wav' });
+                        this.audioChunks = [];
+                        await this.sendAudioToWhisper(audioBlob);
+                    };
+                })
+                .catch(err => {
+                    console.error('Error accessing microphone:', err);
+                    this.setupWebSpeechFallback();
+                });
+        } else {
+            this.setupWebSpeechFallback();
+        }
+    }
+
+    setupWebSpeechFallback() {
         if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             this.recognition = new SpeechRecognition();
@@ -33,19 +59,59 @@ class VoiceAssistant {
         }
     }
 
-    toggleListening() {
-        if (!this.recognition) {
-            this.speak("Speech recognition is not supported in your browser.");
-            return;
-        }
+    async sendAudioToWhisper(audioBlob) {
+        try {
+            const formData = new FormData();
+            formData.append('audio', audioBlob);
 
+            const response = await fetch('/api/transcribe', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error('Transcription failed');
+            }
+
+            const data = await response.json();
+            const transcript = data.text;
+            document.getElementById('voiceText').textContent = transcript;
+            this.processVoiceCommand(transcript);
+        } catch (error) {
+            console.error('Error in Whisper transcription:', error);
+            // If Whisper fails, try Web Speech API as fallback
+            if (this.recognition) {
+                this.recognition.start();
+            } else {
+                this.speak("Speech recognition failed. Please try again.");
+            }
+        } finally {
+            this.isListening = false;
+            document.getElementById('voiceButton').classList.remove('listening');
+        }
+    }
+
+    toggleListening() {
         if (this.isListening) {
-            this.recognition.stop();
+            if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+                this.mediaRecorder.stop();
+            } else if (this.recognition) {
+                this.recognition.stop();
+            }
             this.isListening = false;
         } else {
-            this.recognition.start();
-            this.isListening = true;
-            document.getElementById('voiceButton').classList.add('listening');
+            if (this.mediaRecorder && this.mediaRecorder.state === 'inactive') {
+                this.audioChunks = [];
+                this.mediaRecorder.start();
+                this.isListening = true;
+                document.getElementById('voiceButton').classList.add('listening');
+            } else if (this.recognition) {
+                this.recognition.start();
+                this.isListening = true;
+                document.getElementById('voiceButton').classList.add('listening');
+            } else {
+                this.speak("Speech recognition is not supported in your browser.");
+            }
         }
     }
 
@@ -93,7 +159,9 @@ class VoiceAssistant {
             });
             
             if (response.ok) {
-                loadTasks();  // Refresh the tasks list
+                if (typeof loadTasks === 'function') {
+                    loadTasks();
+                }
             }
         } catch (error) {
             console.error('Error creating task:', error);

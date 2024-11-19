@@ -3,6 +3,7 @@ from flask import Flask, render_template, jsonify, request, redirect, url_for, f
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
+import openai
 from database import db
 from models import User, Goal, Task, Habit, HabitLog, VoiceNote, UserAnalytics, AIInsight
 from services.analytics import AnalyticsService
@@ -14,7 +15,11 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_recycle": 300,
     "pool_pre_ping": True,
 }
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB max file size
 db.init_app(app)
+
+# Set OpenAI API key
+openai.api_key = os.environ.get("OPENAI_API_KEY")
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -207,6 +212,29 @@ def handle_voice_notes():
         'note_type': n.note_type,
         'created_at': n.created_at.isoformat()
     } for n in voice_notes])
+
+@app.route('/api/transcribe', methods=['POST'])
+@login_required
+def transcribe_audio():
+    if 'audio' not in request.files:
+        return jsonify({'error': 'No audio file provided'}), 400
+    
+    audio_file = request.files['audio']
+    if not audio_file:
+        return jsonify({'error': 'Empty audio file'}), 400
+
+    try:
+        # Use OpenAI's Whisper API for transcription
+        response = openai.audio.transcriptions.create(
+            model="whisper-1",
+            file=audio_file,
+            response_format="text"
+        )
+        
+        return jsonify({'text': response})
+    except Exception as e:
+        print(f"Whisper API error: {str(e)}")
+        return jsonify({'error': 'Transcription failed'}), 500
 
 with app.app_context():
     db.create_all()
