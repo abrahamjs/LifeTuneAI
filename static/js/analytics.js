@@ -7,6 +7,22 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 300000);
 });
 
+// Reset and reload all data
+function resetAndReloadData() {
+    fetch('/api/reset-data', {
+        method: 'POST'
+    }).then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            // Reload all data
+            loadGoals();
+            loadTasks();
+            loadHabits();
+            loadAnalytics();
+        }
+    });
+}
+
 function loadAnalytics() {
     Promise.all([
         fetch('/api/analytics/insights').then(response => response.json()),
