@@ -54,4 +54,5 @@ class VoiceNote(db.Model):
     note_type = db.Column(db.String(20))  # 'task', 'journal'
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    task = db.relationship('Task', backref='voice_notes', lazy=True)
+    task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=True)
+    task = db.relationship('Task', backref='voice_notes', lazy=True, foreign_keys=[task_id])
