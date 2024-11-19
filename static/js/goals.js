@@ -61,6 +61,108 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+function loadGoals() {
+    fetch('/api/goals')
+        .then(response => response.json())
+        .then(goals => {
+            const goalsList = document.getElementById('goalsList');
+            goalsList.innerHTML = goals.map(goal => `
+                <div class="goal-card" onclick="showGoalDetails(${goal.id})">
+                    <div class="goal-card-content">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="card-title mb-0">${goal.title}</h6>
+                            <span class="badge bg-${getCategoryBadgeClass(goal.category)}">${goal.category}</span>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar" role="progressbar" 
+                                 style="width: ${goal.progress}%" 
+                                 aria-valuenow="${goal.progress}" 
+                                 aria-valuemin="0" 
+                                 aria-valuemax="100">
+                                ${goal.progress}%
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        });
+}
+
+function showGoalDetails(goalId) {
+    fetch(`/api/goals/${goalId}`)
+        .then(response => response.json())
+        .then(goal => {
+            const detailsPanel = document.getElementById('goalDetailsPanel');
+            detailsPanel.innerHTML = `
+                <div class="goal-details">
+                    <div class="goal-header mb-4">
+                        <h4>${goal.title}</h4>
+                        <span class="badge bg-${getCategoryBadgeClass(goal.category)} mb-2">${goal.category}</span>
+                        <p class="text-muted">${goal.description}</p>
+                    </div>
+                    <div class="goal-dates mb-4">
+                        <div class="row">
+                            <div class="col-6">
+                                <small class="text-muted">Created</small>
+                                <div>${new Date(goal.created_at).toLocaleDateString()}</div>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted">Target Date</small>
+                                <div>${new Date(goal.target_date).toLocaleDateString()}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="goal-progress mb-4">
+                        <h6>Progress</h6>
+                        <div class="progress">
+                            <div class="progress-bar" role="progressbar" 
+                                 style="width: ${goal.progress}%" 
+                                 aria-valuenow="${goal.progress}" 
+                                 aria-valuemin="0" 
+                                 aria-valuemax="100">
+                                ${goal.progress}%
+                            </div>
+                        </div>
+                    </div>
+                    <div class="goal-tasks">
+                        <h6>Related Tasks</h6>
+                        <div class="list-group">
+                            ${goal.tasks.map(task => `
+                                <a href="/tasks?task=${task.id}" class="list-group-item list-group-item-action">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <div class="fw-bold">${task.title}</div>
+                                            <small class="text-muted">${task.description || ''}</small>
+                                        </div>
+                                        <span class="badge bg-${getPriorityBadgeClass(task.priority)}">${task.priority}</span>
+                                    </div>
+                                </a>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+}
+
+function getCategoryBadgeClass(category) {
+    switch(category.toLowerCase()) {
+        case 'personal': return 'info';
+        case 'professional': return 'primary';
+        case 'health': return 'success';
+        case 'education': return 'warning';
+        default: return 'secondary';
+    }
+}
+
+function getPriorityBadgeClass(priority) {
+    switch(priority.toLowerCase()) {
+        case 'urgent': return 'danger';
+        case 'important': return 'warning';
+        default: return 'secondary';
+    }
+}
+
 async function suggestTasks(title, description) {
     try {
         const response = await fetch('/api/goals/suggest-tasks', {
@@ -114,11 +216,6 @@ async function suggestTasks(title, description) {
         `).join('');
         
         suggestedTasks.classList.remove('d-none');
-        
-        // Add edit functionality
-        document.querySelectorAll('.edit-task').forEach(button => {
-            button.addEventListener('click', handleTaskEdit);
-        });
     } catch (error) {
         console.error('Error getting task suggestions:', error);
         document.getElementById('taskSuggestionsList').innerHTML = `
@@ -127,104 +224,4 @@ async function suggestTasks(title, description) {
             </div>
         `;
     }
-}
-
-function handleTaskEdit(event) {
-    const listItem = event.target.closest('.task-suggestion-item');
-    const titleInput = listItem.querySelector('.fw-bold');
-    const descriptionInput = listItem.querySelector('small');
-    const originalTitle = titleInput.textContent.trim();
-    const originalDescription = descriptionInput.textContent.trim();
-    
-    // Replace the content with editable fields
-    titleInput.innerHTML = `<input type="text" class="form-control" value="${originalTitle}">`;
-    descriptionInput.innerHTML = `<textarea class="form-control">${originalDescription}</textarea>`;
-    
-    // Add Save and Cancel buttons
-    const editButtonsContainer = document.createElement('div');
-    editButtonsContainer.classList.add('mt-2');
-    editButtonsContainer.innerHTML = `
-        <button type="button" class="btn btn-primary btn-sm save-edit">Save</button>
-        <button type="button" class="btn btn-secondary btn-sm cancel-edit">Cancel</button>
-    `;
-    listItem.querySelector('.form-check').appendChild(editButtonsContainer);
-
-    // Add event listeners for Save and Cancel buttons
-    listItem.querySelector('.save-edit').addEventListener('click', () => {
-        const newTitle = listItem.querySelector('input').value;
-        const newDescription = listItem.querySelector('textarea').value;
-        titleInput.innerHTML = `<div class="fw-bold">${newTitle}</div>`;
-        descriptionInput.innerHTML = `<small class="text-muted d-block">${newDescription}</small>`;
-        editButtonsContainer.remove();
-    });
-    
-    listItem.querySelector('.cancel-edit').addEventListener('click', () => {
-        titleInput.textContent = originalTitle;
-        descriptionInput.textContent = originalDescription;
-        editButtonsContainer.remove();
-    });
-}
-
-function loadGoals() {
-    fetch('/api/goals')
-        .then(response => response.json())
-        .then(goals => {
-            const goalsList = document.getElementById('goalsList');
-            goalsList.innerHTML = goals.map(goal => `
-                <div class="card mb-3">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h6 class="card-title mb-0">${goal.title}</h6>
-                            <span class="badge bg-info">${goal.category}</span>
-                        </div>
-                        <div class="progress">
-                            <div class="progress-bar" role="progressbar" 
-                                 style="width: ${goal.progress}%" 
-                                 aria-valuenow="${goal.progress}" 
-                                 aria-valuemin="0" 
-                                 aria-valuemax="100">
-                                ${goal.progress}%
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `).join('');
-
-            updateGoalsChart(goals);
-        });
-}
-
-function updateGoalsChart(goals) {
-    const ctx = document.getElementById('goalsProgress');
-    
-    if (goalsChart) {
-        goalsChart.destroy();
-    }
-
-    goalsChart = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: goals.map(goal => goal.title),
-            datasets: [{
-                data: goals.map(goal => goal.progress),
-                backgroundColor: [
-                    'rgba(var(--bs-primary-rgb), 0.5)',
-                    'rgba(var(--bs-success-rgb), 0.5)',
-                    'rgba(var(--bs-info-rgb), 0.5)',
-                    'rgba(var(--bs-warning-rgb), 0.5)'
-                ],
-                borderColor: [
-                    'rgba(var(--bs-primary-rgb), 1)',
-                    'rgba(var(--bs-success-rgb), 1)',
-                    'rgba(var(--bs-info-rgb), 1)',
-                    'rgba(var(--bs-warning-rgb), 1)'
-                ],
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false
-        }
-    });
 }

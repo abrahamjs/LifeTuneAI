@@ -175,3 +175,53 @@ canvas {
 .task-suggestion-item:hover .edit-task {
     opacity: 1;
 }
+
+/* Goals Grid */
+.goals-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+}
+
+.goal-card {
+    background: rgba(var(--bs-dark-rgb), 0.2);
+    border-radius: 8px;
+    padding: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.goal-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    background: rgba(var(--bs-primary-rgb), 0.1);
+}
+
+.goal-details {
+    background: rgba(var(--bs-dark-rgb), 0.1);
+    border-radius: 8px;
+    padding: 1.5rem;
+}
+
+.goal-header h4 {
+    margin-bottom: 0.5rem;
+    color: var(--bs-primary);
+}
+
+.goal-dates {
+    background: rgba(var(--bs-dark-rgb), 0.2);
+    border-radius: 6px;
+    padding: 1rem;
+}
+
+.goal-tasks .list-group-item {
+    background: transparent;
+    border: 1px solid rgba(var(--bs-secondary-rgb), 0.2);
+    margin-bottom: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.goal-tasks .list-group-item:hover {
+    background: rgba(var(--bs-primary-rgb), 0.1);
+    border-color: rgba(var(--bs-primary-rgb), 0.2);
+}

@@ -1,8 +1,7 @@
 import os
-import random
 from datetime import datetime, timedelta
 from flask import Flask, render_template, jsonify, request, redirect, url_for, flash
-from flask_login import LoginManager, login_user, logout_user, login_required, current_user, AnonymousUserMixin
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import openai
 import json
@@ -12,7 +11,7 @@ from services.analytics import AnalyticsService
 from config.settings import AUTH_REQUIRED
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY") or "a secret key"
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "development_key")
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_recycle": 300,
@@ -55,58 +54,6 @@ def login_required_if_enabled(f):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if not AUTH_REQUIRED:
-        user = get_or_create_test_user()
-        login_user(user)
-        return redirect(url_for('dashboard'))
-
-    if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
-        user = User.query.filter_by(email=email).first()
-        if user and check_password_hash(user.password_hash, password):
-            login_user(user)
-            return redirect(url_for('dashboard'))
-        flash('Invalid email or password')
-    return render_template('login.html')
-
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    if not AUTH_REQUIRED:
-        return redirect(url_for('login'))
-
-    if request.method == 'POST':
-        email = request.form.get('email')
-        username = request.form.get('username')
-        password = request.form.get('password')
-        
-        if User.query.filter_by(email=email).first():
-            flash('Email already registered')
-            return redirect(url_for('register'))
-            
-        if User.query.filter_by(username=username).first():
-            flash('Username already taken')
-            return redirect(url_for('register'))
-            
-        user = User(
-            username=username,
-            email=email,
-            password_hash=generate_password_hash(password)
-        )
-        db.session.add(user)
-        db.session.commit()
-        login_user(user)
-        return redirect(url_for('dashboard'))
-    return render_template('register.html')
-
-@app.route('/logout')
-@login_required_if_enabled
-def logout():
-    logout_user()
-    return redirect(url_for('login'))
-
 @app.route('/')
 @login_required_if_enabled
 def dashboard():
@@ -138,7 +85,7 @@ def analytics():
 @app.route('/api/goals/suggest-tasks', methods=['POST'])
 @login_required_if_enabled
 def suggest_tasks():
-    data = request.json
+    data = request.get_json()
     goal_title = data.get('title', '')
     goal_description = data.get('description', '')
     
@@ -151,32 +98,53 @@ def suggest_tasks():
             ]
         )
         
-        # Extract the JSON string from the response and parse it
-        try:
-            tasks_str = completion.choices[0].message.content.strip()
-            # Handle cases where response might include markdown code blocks
-            if '```json' in tasks_str:
-                tasks_str = tasks_str.split('```json')[1].split('```')[0]
-            elif '```' in tasks_str:
-                tasks_str = tasks_str.split('```')[1].split('```')[0]
-            tasks = json.loads(tasks_str)
-            # Ensure response is an array
-            if not isinstance(tasks, list):
-                tasks = tasks.get('tasks', [])
-            return jsonify(tasks)
-        except json.JSONDecodeError as e:
-            print(f"JSON parse error: {str(e)}, Content: {tasks_str}")
-            return jsonify({'error': 'Invalid response format'}), 500
+        tasks_str = completion.choices[0].message.content.strip()
+        # Handle cases where response might include markdown code blocks
+        if '```json' in tasks_str:
+            tasks_str = tasks_str.split('```json')[1].split('```')[0]
+        elif '```' in tasks_str:
+            tasks_str = tasks_str.split('```')[1].split('```')[0]
             
+        tasks = json.loads(tasks_str)
+        # Ensure response is an array
+        if not isinstance(tasks, list):
+            tasks = tasks.get('tasks', [])
+            
+        return jsonify(tasks)
     except Exception as e:
         print(f"Error generating tasks: {str(e)}")
         return jsonify({'error': 'Failed to generate tasks'}), 500
+
+@app.route('/api/goals/<int:goal_id>')
+@login_required_if_enabled
+def get_goal_details(goal_id):
+    goal = Goal.query.get_or_404(goal_id)
+    if goal.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    return jsonify({
+        'id': goal.id,
+        'title': goal.title,
+        'description': goal.description,
+        'progress': goal.progress,
+        'category': goal.category,
+        'created_at': goal.created_at.isoformat(),
+        'target_date': goal.target_date.isoformat(),
+        'tasks': [{
+            'id': task.id,
+            'title': task.title,
+            'description': task.description,
+            'priority': task.priority,
+            'completed': task.completed,
+            'due_date': task.due_date.isoformat() if task.due_date else None
+        } for task in goal.tasks]
+    })
 
 @app.route('/api/goals', methods=['GET', 'POST'])
 @login_required_if_enabled
 def handle_goals():
     if request.method == 'POST':
-        data = request.json
+        data = request.get_json()
         goal = Goal(
             title=data['title'],
             description=data['description'],
@@ -215,7 +183,7 @@ def handle_goals():
 @login_required_if_enabled
 def handle_tasks():
     if request.method == 'POST':
-        data = request.json
+        data = request.get_json()
         task = Task(
             title=data['title'],
             description=data['description'],
@@ -226,6 +194,7 @@ def handle_tasks():
         db.session.add(task)
         db.session.commit()
         return jsonify({'status': 'success'})
+    
     tasks = Task.query.filter_by(user_id=current_user.id).all()
     return jsonify([{
         'id': t.id,
@@ -238,7 +207,7 @@ def handle_tasks():
 @login_required_if_enabled
 def handle_habits():
     if request.method == 'POST':
-        data = request.json
+        data = request.get_json()
         habit = Habit(
             title=data['title'],
             description=data['description'],
@@ -248,6 +217,7 @@ def handle_habits():
         db.session.add(habit)
         db.session.commit()
         return jsonify({'status': 'success'})
+    
     habits = Habit.query.filter_by(user_id=current_user.id).all()
     return jsonify([{
         'id': h.id,
@@ -296,7 +266,7 @@ def get_analytics_trends():
 @login_required_if_enabled
 def handle_voice_notes():
     if request.method == 'POST':
-        data = request.json
+        data = request.get_json()
         voice_note = VoiceNote(
             transcription=data['transcription'],
             note_type=data['note_type'],
