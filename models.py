@@ -31,7 +31,6 @@ class Task(db.Model):
     completed = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    voice_note_id = db.Column(db.Integer, db.ForeignKey('voice_note.id'), nullable=True)
 
 class Habit(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -55,4 +54,4 @@ class VoiceNote(db.Model):
     note_type = db.Column(db.String(20))  # 'task', 'journal'
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    tasks = db.relationship('Task', backref='voice_note', lazy=True)
+    task = db.relationship('Task', backref='voice_notes', lazy=True)
