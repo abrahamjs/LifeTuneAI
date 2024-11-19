@@ -1,8 +1,9 @@
 import os
+import random
+from datetime import datetime, timedelta
 from flask import Flask, render_template, jsonify, request, redirect, url_for, flash
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user, AnonymousUserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
 import openai
 from database import db
 from models import User, Goal, Task, Habit, HabitLog, VoiceNote, UserAnalytics, AIInsight
@@ -37,6 +38,71 @@ def get_or_create_test_user():
         db.session.add(test_user)
         db.session.commit()
     return test_user
+
+def create_dummy_data():
+    # Check if dummy data already exists
+    if User.query.filter_by(email='test@example.com').first():
+        return
+
+    # Create test user
+    test_user = get_or_create_test_user()
+    
+    # Create dummy goals
+    goals = [
+        Goal(title="Learn Python", description="Master Python programming", target_date=datetime.utcnow() + timedelta(days=30), progress=65, category="education", user_id=test_user.id),
+        Goal(title="Exercise Routine", description="Establish workout habit", target_date=datetime.utcnow() + timedelta(days=60), progress=40, category="health", user_id=test_user.id),
+        Goal(title="Reading Challenge", description="Read 12 books this year", target_date=datetime.utcnow() + timedelta(days=90), progress=75, category="personal", user_id=test_user.id)
+    ]
+    
+    # Create dummy tasks
+    tasks = [
+        Task(title="Complete Project Documentation", description="Write technical docs", priority="urgent", due_date=datetime.utcnow() + timedelta(days=2), user_id=test_user.id),
+        Task(title="Weekly Team Meeting", description="Discuss progress", priority="important", due_date=datetime.utcnow() + timedelta(days=1), completed=True, user_id=test_user.id),
+        Task(title="Review Code PR", description="Review team's code", priority="normal", due_date=datetime.utcnow() + timedelta(days=3), user_id=test_user.id)
+    ]
+    
+    # Create dummy habits
+    habits = [
+        Habit(title="Morning Meditation", description="15 minutes meditation", frequency="daily", current_streak=5, best_streak=10, user_id=test_user.id),
+        Habit(title="Exercise", description="30 minutes workout", frequency="daily", current_streak=3, best_streak=15, user_id=test_user.id),
+        Habit(title="Reading", description="Read for 30 minutes", frequency="daily", current_streak=7, best_streak=7, user_id=test_user.id)
+    ]
+    
+    # Create dummy analytics
+    for i in range(7):
+        date = datetime.utcnow().date() - timedelta(days=i)
+        analytics = UserAnalytics(
+            user_id=test_user.id,
+            date=date,
+            productivity_score=random.randint(65, 95),
+            tasks_completed=random.randint(3, 8),
+            goals_progress=random.randint(50, 90),
+            active_habits=random.randint(2, 3),
+            focus_time=random.randint(120, 240)
+        )
+        db.session.add(analytics)
+    
+    # Create dummy insights
+    insights = [
+        AIInsight(
+            user_id=test_user.id,
+            insight_type="productivity",
+            content="Your productivity has increased by 15% this week. Great job maintaining focus during work sessions!",
+            recommendations="Try to take regular breaks to maintain this momentum.",
+            created_at=datetime.utcnow() - timedelta(hours=2)
+        ),
+        AIInsight(
+            user_id=test_user.id,
+            insight_type="habits",
+            content="Your meditation streak is building nicely. You've been consistent with morning meditation for 5 days.",
+            recommendations="Consider increasing session duration to 20 minutes for better results.",
+            created_at=datetime.utcnow() - timedelta(hours=1)
+        )
+    ]
+    
+    # Add all dummy data
+    db.session.add_all(goals + tasks + habits + insights)
+    db.session.commit()
 
 def login_required_if_enabled(f):
     if AUTH_REQUIRED:
@@ -273,3 +339,4 @@ def transcribe_audio():
 
 with app.app_context():
     db.create_all()
+    create_dummy_data()

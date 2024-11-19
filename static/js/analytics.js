@@ -1,11 +1,9 @@
 document.addEventListener('DOMContentLoaded', function() {
     loadAnalytics();
-    loadInsights();
     
     // Refresh data every 5 minutes
     setInterval(() => {
         loadAnalytics();
-        loadInsights();
     }, 300000);
 });
 
