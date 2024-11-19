@@ -7,7 +7,59 @@ class VoiceAssistant {
         this.audioChunks = [];
         this.listeningAnimation = document.getElementById('listeningAnimation');
         this.voiceError = document.getElementById('voiceError');
+        
+        // Check browser support
+        if (!this.setupWebSpeechFallback() && (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)) {
+            this.voiceError.textContent = 'Speech recognition is not supported in your browser. Please try using Chrome, Edge, or Safari.';
+            this.voiceError.classList.add('show');
+            return;
+        }
+        
         this.setupSpeechRecognition();
+    }
+
+    setupWebSpeechFallback() {
+        // Check for both standard and webkit prefixed API
+        if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            this.recognition = new SpeechRecognition();
+            this.recognition.continuous = false;
+            this.recognition.interimResults = true;
+            this.recognition.lang = 'en-US';
+
+            this.setupRecognitionHandlers();
+            return true;
+        }
+        return false;
+    }
+
+    setupRecognitionHandlers() {
+        this.recognition.onresult = (event) => {
+            const transcript = Array.from(event.results)
+                .map(result => result[0].transcript)
+                .join('');
+            
+            if (event.results[0].isFinal) {
+                this.processVoiceCommand(transcript);
+            }
+            
+            document.getElementById('voiceText').textContent = transcript;
+        };
+
+        this.recognition.onerror = (event) => {
+            console.error('Speech recognition error:', event.error);
+            this.voiceError.textContent = 'Speech recognition error: ' + event.error;
+            this.voiceError.classList.add('show');
+            this.listeningAnimation.classList.add('d-none');
+            this.isListening = false;
+            document.getElementById('voiceButton').classList.remove('listening');
+        };
+
+        this.recognition.onend = () => {
+            this.isListening = false;
+            document.getElementById('voiceButton').classList.remove('listening');
+            this.listeningAnimation.classList.add('d-none');
+        };
     }
 
     setupSpeechRecognition() {
@@ -34,38 +86,10 @@ class VoiceAssistant {
         }
     }
 
-    setupWebSpeechFallback() {
-        if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            this.recognition = new SpeechRecognition();
-            this.recognition.continuous = false;
-            this.recognition.interimResults = true;
-            this.recognition.lang = 'en-US';
-
-            this.recognition.onresult = (event) => {
-                const transcript = Array.from(event.results)
-                    .map(result => result[0].transcript)
-                    .join('');
-                
-                if (event.results[0].isFinal) {
-                    this.processVoiceCommand(transcript);
-                }
-                
-                document.getElementById('voiceText').textContent = transcript;
-            };
-
-            this.recognition.onend = () => {
-                this.isListening = false;
-                document.getElementById('voiceButton').classList.remove('listening');
-                this.listeningAnimation.classList.add('d-none');
-            };
-        }
-    }
-
     async sendAudioToWhisper(audioBlob) {
         try {
             const formData = new FormData();
-            formData.append('audio', audioBlob);
+            formData.append('audio', audioBlob, 'audio.wav');
 
             const response = await fetch('/api/transcribe', {
                 method: 'POST',
@@ -73,10 +97,14 @@ class VoiceAssistant {
             });
 
             if (!response.ok) {
-                throw new Error('Transcription failed');
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
 
             const data = await response.json();
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
             const transcript = data.text;
             document.getElementById('voiceText').textContent = transcript;
             this.processVoiceCommand(transcript);
@@ -85,10 +113,12 @@ class VoiceAssistant {
             this.voiceError.textContent = 'Speech recognition failed. Please try again.';
             this.voiceError.classList.add('show');
             this.listeningAnimation.classList.add('d-none');
+            
+            // Try Web Speech API as fallback
             if (this.recognition) {
                 this.recognition.start();
             } else {
-                this.speak("Speech recognition failed. Please try again.");
+                this.speak("Speech recognition failed. Please try again or use a supported browser.");
             }
         } finally {
             this.isListening = false;
