@@ -63,15 +63,16 @@ class VoiceAssistant {
     }
 
     setupSpeechRecognition() {
-        // Setup for Whisper-based recording
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
             navigator.mediaDevices.getUserMedia({ audio: true })
                 .then(stream => {
+                    console.log('Microphone access granted');
                     this.mediaRecorder = new MediaRecorder(stream);
                     this.mediaRecorder.ondataavailable = (event) => {
                         this.audioChunks.push(event.data);
                     };
                     this.mediaRecorder.onstop = async () => {
+                        console.log('Recording stopped, processing audio...');
                         const audioBlob = new Blob(this.audioChunks, { type: 'audio/wav' });
                         this.audioChunks = [];
                         await this.sendAudioToWhisper(audioBlob);
@@ -82,14 +83,20 @@ class VoiceAssistant {
                     this.setupWebSpeechFallback();
                 });
         } else {
+            console.log('MediaRecorder not supported, using Web Speech API fallback');
             this.setupWebSpeechFallback();
         }
     }
 
     async sendAudioToWhisper(audioBlob) {
         try {
+            // Convert audio to correct format for Whisper
             const formData = new FormData();
-            formData.append('audio', audioBlob, 'audio.wav');
+            // Ensure audio blob is in correct format
+            const audioFile = new File([audioBlob], 'audio.wav', {
+                type: 'audio/wav'
+            });
+            formData.append('audio', audioFile);
 
             const response = await fetch('/api/transcribe', {
                 method: 'POST',
@@ -106,19 +113,21 @@ class VoiceAssistant {
             }
 
             const transcript = data.text;
+            if (!transcript) {
+                throw new Error('No transcription received');
+            }
+
             document.getElementById('voiceText').textContent = transcript;
             this.processVoiceCommand(transcript);
         } catch (error) {
             console.error('Error in Whisper transcription:', error);
-            this.voiceError.textContent = 'Speech recognition failed. Please try again.';
+            this.voiceError.textContent = `Speech recognition failed: ${error.message}. Falling back to browser recognition.`;
             this.voiceError.classList.add('show');
             this.listeningAnimation.classList.add('d-none');
             
             // Try Web Speech API as fallback
             if (this.recognition) {
                 this.recognition.start();
-            } else {
-                this.speak("Speech recognition failed. Please try again or use a supported browser.");
             }
         } finally {
             this.isListening = false;
@@ -128,29 +137,37 @@ class VoiceAssistant {
 
     toggleListening() {
         if (this.isListening) {
-            this.listeningAnimation.classList.add('d-none');
-            if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
-                this.mediaRecorder.stop();
-            } else if (this.recognition) {
-                this.recognition.stop();
-            }
-            this.isListening = false;
+            this.stopListening();
         } else {
-            this.listeningAnimation.classList.remove('d-none');
-            this.voiceError.classList.remove('show');
-            if (this.mediaRecorder && this.mediaRecorder.state === 'inactive') {
-                this.audioChunks = [];
-                this.mediaRecorder.start();
-                this.isListening = true;
-                document.getElementById('voiceButton').classList.add('listening');
-            } else if (this.recognition) {
-                this.recognition.start();
-                this.isListening = true;
-                document.getElementById('voiceButton').classList.add('listening');
-            } else {
-                this.speak("Speech recognition is not supported in your browser.");
-            }
+            this.startListening();
         }
+    }
+
+    startListening() {
+        this.listeningAnimation.classList.remove('d-none');
+        this.voiceError.classList.remove('show');
+        document.getElementById('voiceButton').classList.add('listening');
+        
+        if (this.mediaRecorder && this.mediaRecorder.state === 'inactive') {
+            this.audioChunks = [];
+            this.mediaRecorder.start();
+            this.isListening = true;
+        } else if (this.recognition) {
+            this.recognition.start();
+            this.isListening = true;
+        }
+    }
+
+    stopListening() {
+        this.listeningAnimation.classList.add('d-none');
+        document.getElementById('voiceButton').classList.remove('listening');
+        
+        if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+            this.mediaRecorder.stop();
+        } else if (this.recognition) {
+            this.recognition.stop();
+        }
+        this.isListening = false;
     }
 
     processVoiceCommand(transcript) {
