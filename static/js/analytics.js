@@ -28,6 +28,8 @@ function loadAnalytics() {
         updateProductivityChart(trends);
         updateTaskCompletionChart(trends);
         updateHabitStreakChart(trends);
+        updateAdvancedMetricsChart(trends);
+        updatePredictionsChart(trends);
     })
     .catch(error => {
         console.error('Error loading analytics:', error);
@@ -67,8 +69,9 @@ function updateInsightsList(insights) {
 function getInsightTypeBadgeClass(type) {
     switch(type.toLowerCase()) {
         case 'productivity': return 'info';
+        case 'efficiency': return 'warning';
         case 'goals': return 'success';
-        case 'habits': return 'warning';
+        case 'habits': return 'primary';
         default: return 'secondary';
     }
 }
@@ -154,17 +157,114 @@ function updateHabitStreakChart(data) {
     new Chart(habitCtx, {
         type: 'radar',
         data: {
-            labels: ['All Habits', 'Daily Habits', 'Weekly Habits'],
+            labels: ['Active Habits', 'Focus Time', 'Habit Impact'],
             datasets: [{
-                label: 'Active Habits',
-                data: data.productivity.active_habits.slice(-3),
+                label: 'Current Performance',
+                data: [
+                    data.productivity.active_habits.slice(-1)[0],
+                    data.productivity.focus_time.slice(-1)[0] / 240 * 100,
+                    data.productivity.habit_impact.slice(-1)[0]
+                ],
                 borderColor: 'rgba(var(--bs-warning-rgb), 1)',
                 backgroundColor: 'rgba(var(--bs-warning-rgb), 0.2)'
             }]
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false
+            maintainAspectRatio: false,
+            scales: {
+                r: {
+                    beginAtZero: true,
+                    max: 100,
+                    ticks: {
+                        stepSize: 20
+                    }
+                }
+            }
+        }
+    });
+}
+
+function updateAdvancedMetricsChart(data) {
+    const metricsCtx = document.getElementById('advancedMetricsChart');
+    if (!metricsCtx) return;
+
+    new Chart(metricsCtx, {
+        type: 'line',
+        data: {
+            labels: data.productivity.dates,
+            datasets: [
+                {
+                    label: 'Task Efficiency',
+                    data: data.productivity.task_efficiency,
+                    borderColor: 'rgba(var(--bs-primary-rgb), 1)',
+                    backgroundColor: 'rgba(var(--bs-primary-rgb), 0.1)',
+                    fill: true
+                },
+                {
+                    label: 'Habit Impact',
+                    data: data.productivity.habit_impact,
+                    borderColor: 'rgba(var(--bs-success-rgb), 1)',
+                    backgroundColor: 'rgba(var(--bs-success-rgb), 0.1)',
+                    fill: true
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    title: {
+                        display: true,
+                        text: 'Score'
+                    }
+                }
+            }
+        }
+    });
+}
+
+function updatePredictionsChart(data) {
+    const predictionsCtx = document.getElementById('predictionsChart');
+    if (!predictionsCtx) return;
+
+    new Chart(predictionsCtx, {
+        type: 'line',
+        data: {
+            labels: data.productivity.dates,
+            datasets: [{
+                label: 'Goal Completion Prediction',
+                data: data.productivity.goal_predictions,
+                borderColor: 'rgba(var(--bs-info-rgb), 1)',
+                backgroundColor: 'rgba(var(--bs-info-rgb), 0.1)',
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    title: {
+                        display: true,
+                        text: 'Probability (%)'
+                    }
+                }
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `Probability: ${context.raw.toFixed(1)}%`;
+                        }
+                    }
+                }
+            }
         }
     });
 }

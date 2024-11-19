@@ -70,12 +70,15 @@ class UserAnalytics(db.Model):
     goals_progress = db.Column(db.Float, default=0.0)  # Average progress across goals
     active_habits = db.Column(db.Integer, default=0)
     focus_time = db.Column(db.Integer, default=0)  # Minutes spent in focus sessions
+    task_efficiency_score = db.Column(db.Float, default=0.0)  # 0-100
+    habit_impact_score = db.Column(db.Float, default=0.0)  # 0-100
+    goal_completion_prediction = db.Column(db.Float, default=0.0)  # 0-100
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class AIInsight(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    insight_type = db.Column(db.String(50))  # productivity, habits, goals
+    insight_type = db.Column(db.String(50))  # productivity, habits, goals, efficiency
     content = db.Column(db.Text, nullable=False)
     recommendations = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
