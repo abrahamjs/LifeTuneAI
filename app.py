@@ -5,6 +5,7 @@ from flask import Flask, render_template, jsonify, request, redirect, url_for, f
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user, AnonymousUserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 import openai
+import json
 from database import db
 from models import User, Goal, Task, Habit, HabitLog, VoiceNote, UserAnalytics, AIInsight
 from services.analytics import AnalyticsService
@@ -228,6 +229,28 @@ def habits():
 def analytics():
     return render_template('analytics.html')
 
+@app.route('/api/goals/suggest-tasks', methods=['POST'])
+@login_required_if_enabled
+def suggest_tasks():
+    data = request.json
+    goal_title = data.get('title', '')
+    goal_description = data.get('description', '')
+    
+    try:
+        completion = openai.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a goal planning assistant. Generate actionable tasks for achieving a goal. Return response in JSON format with an array of tasks, each having 'title' and 'description' fields."},
+                {"role": "user", "content": f"Generate tasks for this goal: {goal_title}. Description: {goal_description}"}
+            ]
+        )
+        
+        tasks = json.loads(completion.choices[0].message.content)
+        return jsonify(tasks)
+    except Exception as e:
+        print(f"Error generating tasks: {str(e)}")
+        return jsonify({'error': 'Failed to generate tasks'}), 500
+
 @app.route('/api/goals', methods=['GET', 'POST'])
 @login_required_if_enabled
 def handle_goals():
@@ -241,8 +264,24 @@ def handle_goals():
             user_id=current_user.id
         )
         db.session.add(goal)
+        db.session.flush()  # This gives us the goal.id
+        
+        # Create associated tasks
+        if 'tasks' in data:
+            for task_data in data['tasks']:
+                task = Task(
+                    title=task_data['title'],
+                    description=task_data['description'],
+                    priority='normal',
+                    due_date=goal.target_date,
+                    user_id=current_user.id,
+                    goal_id=goal.id
+                )
+                db.session.add(task)
+        
         db.session.commit()
         return jsonify({'status': 'success'})
+    
     goals = Goal.query.filter_by(user_id=current_user.id).all()
     return jsonify([{
         'id': g.id,
