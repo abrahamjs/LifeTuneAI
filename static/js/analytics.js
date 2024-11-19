@@ -9,18 +9,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Reset and reload all data
 function resetAndReloadData() {
-    fetch('/api/reset-data', {
-        method: 'POST'
-    }).then(response => response.json())
-    .then(data => {
-        if (data.status === 'success') {
-            // Reload all data
-            loadGoals();
-            loadTasks();
-            loadHabits();
-            loadAnalytics();
-        }
-    });
+    fetch('/api/reset-data', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                window.location.reload();
+            }
+        });
 }
 
 function loadAnalytics() {
