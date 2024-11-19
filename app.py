@@ -165,6 +165,29 @@ def handle_habits():
         'best_streak': h.best_streak
     } for h in habits])
 
+@app.route('/api/voice-notes', methods=['GET', 'POST'])
+@login_required
+def handle_voice_notes():
+    from models import VoiceNote
+    if request.method == 'POST':
+        data = request.json
+        voice_note = VoiceNote(
+            transcription=data['transcription'],
+            note_type=data['note_type'],
+            user_id=current_user.id
+        )
+        db.session.add(voice_note)
+        db.session.commit()
+        return jsonify({'status': 'success', 'id': voice_note.id})
+    
+    voice_notes = VoiceNote.query.filter_by(user_id=current_user.id).all()
+    return jsonify([{
+        'id': n.id,
+        'transcription': n.transcription,
+        'note_type': n.note_type,
+        'created_at': n.created_at.isoformat()
+    } for n in voice_notes])
+
 with app.app_context():
     import models
     db.create_all()

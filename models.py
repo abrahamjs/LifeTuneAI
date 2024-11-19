@@ -10,6 +10,7 @@ class User(UserMixin, db.Model):
     goals = db.relationship('Goal', backref='user', lazy=True)
     tasks = db.relationship('Task', backref='user', lazy=True)
     habits = db.relationship('Habit', backref='user', lazy=True)
+    voice_notes = db.relationship('VoiceNote', backref='user', lazy=True)
 
 class Goal(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -30,6 +31,7 @@ class Task(db.Model):
     completed = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    voice_note_id = db.Column(db.Integer, db.ForeignKey('voice_note.id'), nullable=True)
 
 class Habit(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -45,3 +47,12 @@ class HabitLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     habit_id = db.Column(db.Integer, db.ForeignKey('habit.id'), nullable=False)
     completed_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class VoiceNote(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    transcription = db.Column(db.Text, nullable=False)
+    audio_data = db.Column(db.LargeBinary, nullable=True)  # For storing small audio clips if needed
+    note_type = db.Column(db.String(20))  # 'task', 'journal'
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    tasks = db.relationship('Task', backref='voice_note', lazy=True)
