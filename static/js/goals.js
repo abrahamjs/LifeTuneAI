@@ -1,5 +1,3 @@
-let goalsChart;
-
 document.addEventListener('DOMContentLoaded', function() {
     loadGoals();
 
@@ -154,6 +152,87 @@ function showGoalDetails(goalId) {
         });
 }
 
+function editGoal(goalId) {
+    const detailsContent = document.getElementById('goalDetailsContent');
+    const currentContent = detailsContent.innerHTML;
+    
+    fetch(`/api/goals/${goalId}`)
+        .then(response => response.json())
+        .then(goal => {
+            detailsContent.innerHTML = `
+                <form id="editGoalForm">
+                    <div class="mb-3">
+                        <label class="form-label">Title</label>
+                        <input type="text" class="form-control" id="editGoalTitle" value="${goal.title}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" id="editGoalDescription" rows="3">${goal.description}</textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Category</label>
+                        <select class="form-control" id="editGoalCategory">
+                            <option value="personal" ${goal.category === 'personal' ? 'selected' : ''}>Personal</option>
+                            <option value="professional" ${goal.category === 'professional' ? 'selected' : ''}>Professional</option>
+                            <option value="health" ${goal.category === 'health' ? 'selected' : ''}>Health</option>
+                            <option value="education" ${goal.category === 'education' ? 'selected' : ''}>Education</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Target Date</label>
+                        <input type="date" class="form-control" id="editGoalTargetDate" 
+                               value="${goal.target_date.split('T')[0]}">
+                    </div>
+                </form>
+            `;
+            
+            // Change footer buttons
+            const footer = document.querySelector('#goalDetailsModal .modal-footer');
+            footer.innerHTML = `
+                <button type="button" class="btn btn-secondary" onclick="cancelEdit(${goalId}, '${encodeURIComponent(currentContent)}')">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveGoalEdit(${goalId})">Save Changes</button>
+            `;
+        });
+}
+
+function cancelEdit(goalId, previousContent) {
+    document.getElementById('goalDetailsContent').innerHTML = decodeURIComponent(previousContent);
+    resetModalFooter(goalId);
+}
+
+function resetModalFooter(goalId) {
+    const footer = document.querySelector('#goalDetailsModal .modal-footer');
+    footer.innerHTML = `
+        <button type="button" class="btn btn-danger" id="deleteGoal" onclick="deleteGoal(${goalId})">Delete</button>
+        <button type="button" class="btn btn-primary" onclick="editGoal(${goalId})">Edit</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+    `;
+}
+
+function saveGoalEdit(goalId) {
+    const data = {
+        title: document.getElementById('editGoalTitle').value,
+        description: document.getElementById('editGoalDescription').value,
+        category: document.getElementById('editGoalCategory').value,
+        target_date: document.getElementById('editGoalTargetDate').value
+    };
+    
+    fetch(`/api/goals/${goalId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showGoalDetails(goalId);  // Refresh the details view
+            loadGoals();  // Refresh the goals list
+        }
+    });
+}
+
 function deleteGoal(goalId) {
     if (confirm('Are you sure you want to delete this goal?')) {
         fetch(`/api/goals/${goalId}`, {
@@ -168,61 +247,6 @@ function deleteGoal(goalId) {
             }
         });
     }
-}
-
-function editGoal(goalId) {
-    // Hide details modal
-    const detailsModal = bootstrap.Modal.getInstance(document.getElementById('goalDetailsModal'));
-    detailsModal.hide();
-    
-    // Show edit modal
-    const editModal = new bootstrap.Modal(document.getElementById('newGoalModal'));
-    editModal.show();
-    
-    // Populate form with goal data
-    fetch(`/api/goals/${goalId}`)
-        .then(response => response.json())
-        .then(goal => {
-            document.getElementById('goalTitle').value = goal.title;
-            document.getElementById('goalDescription').value = goal.description;
-            document.getElementById('goalCategory').value = goal.category;
-            document.getElementById('goalTargetDate').value = goal.target_date.split('T')[0];
-            
-            // Update save button to handle edit
-            const saveButton = document.getElementById('saveGoal');
-            saveButton.textContent = 'Update Goal';
-            saveButton.onclick = () => updateGoal(goalId);
-        });
-}
-
-function updateGoal(goalId) {
-    const data = {
-        title: document.getElementById('goalTitle').value,
-        description: document.getElementById('goalDescription').value,
-        category: document.getElementById('goalCategory').value,
-        target_date: document.getElementById('goalTargetDate').value
-    };
-    
-    fetch(`/api/goals/${goalId}`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.status === 'success') {
-            const modal = bootstrap.Modal.getInstance(document.getElementById('newGoalModal'));
-            modal.hide();
-            loadGoals();
-            
-            // Reset the save button
-            const saveButton = document.getElementById('saveGoal');
-            saveButton.textContent = 'Create Goal';
-            saveButton.onclick = null;  // Reset to default handler
-        }
-    });
 }
 
 function getCategoryBadgeClass(category) {

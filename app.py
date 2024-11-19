@@ -1,66 +1,85 @@
-import os
-from datetime import datetime, timedelta
-from flask import Flask, render_template, jsonify, request, redirect, url_for, flash
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-import openai
-import json
+from datetime import datetime, timedelta
+from models import User, Task, Goal, Habit, UserAnalytics, AIInsight
 from database import db
-from models import User, Goal, Task, Habit, HabitLog, VoiceNote, UserAnalytics, AIInsight
-from services.analytics import AnalyticsService
 from config.settings import AUTH_REQUIRED
+from services.analytics import AnalyticsService
+import os
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "development_key")
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
-app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-    "pool_recycle": 300,
-    "pool_pre_ping": True,
-}
-app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB max file size
+app.config['SECRET_KEY'] = os.urandom(24)
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Initialize extensions
 db.init_app(app)
-
-# Set OpenAI API key
-openai.api_key = os.environ.get("OPENAI_API_KEY")
-
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-def get_or_create_test_user():
-    test_user = User.query.filter_by(email='test@example.com').first()
-    if not test_user:
-        test_user = User(
-            username='test_user',
-            email='test@example.com',
-            password_hash='mock_hash'
-        )
-        db.session.add(test_user)
-        db.session.commit()
-    return test_user
-
 def login_required_if_enabled(f):
     if AUTH_REQUIRED:
         return login_required(f)
-    def wrapped(*args, **kwargs):
-        if not current_user.is_authenticated:
-            user = get_or_create_test_user()
-            login_user(user)
-        return f(*args, **kwargs)
-    wrapped.__name__ = f.__name__
-    return wrapped
+    return f
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+@app.before_request
+def create_tables():
+    db.create_all()
+
 @app.route('/')
 @login_required_if_enabled
 def dashboard():
-    # Generate fresh analytics before showing dashboard
-    AnalyticsService.calculate_daily_analytics(current_user.id)
-    insights = AnalyticsService.get_user_insights(current_user.id)
-    return render_template('dashboard.html', insights=insights)
+    return render_template('dashboard.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        user = User.query.filter_by(email=email).first()
+        
+        if user and check_password_hash(user.password_hash, password):
+            login_user(user)
+            return redirect(url_for('dashboard'))
+        
+        flash('Invalid email or password')
+    return render_template('login.html')
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        
+        if User.query.filter_by(email=email).first():
+            flash('Email already registered')
+            return render_template('register.html')
+            
+        user = User(
+            username=username,
+            email=email,
+            password_hash=generate_password_hash(password)
+        )
+        db.session.add(user)
+        db.session.commit()
+        
+        login_user(user)
+        return redirect(url_for('dashboard'))
+        
+    return render_template('register.html')
+
+@app.route('/logout')
+@login_required_if_enabled
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
 
 @app.route('/goals')
 @login_required_if_enabled
@@ -82,18 +101,61 @@ def habits():
 def analytics():
     return render_template('analytics.html')
 
-@app.route('/api/goals/<int:goal_id>', methods=['GET', 'DELETE', 'PUT'])
+# API Routes
+@app.route('/api/goals', methods=['GET', 'POST'])
+@login_required_if_enabled
+def api_goals():
+    if request.method == 'POST':
+        data = request.get_json()
+        goal = Goal(
+            title=data['title'],
+            description=data['description'],
+            category=data['category'],
+            target_date=datetime.strptime(data['target_date'], '%Y-%m-%d'),
+            user_id=current_user.id if AUTH_REQUIRED else 1
+        )
+        db.session.add(goal)
+        db.session.commit()
+        
+        # Create associated tasks if provided
+        if 'tasks' in data:
+            for task_data in data['tasks']:
+                task = Task(
+                    title=task_data['title'],
+                    description=task_data['description'],
+                    user_id=current_user.id if AUTH_REQUIRED else 1,
+                    goal_id=goal.id
+                )
+                db.session.add(task)
+            db.session.commit()
+            
+        return jsonify({'status': 'success'})
+        
+    goals = Goal.query.filter_by(
+        user_id=current_user.id if AUTH_REQUIRED else 1
+    ).all()
+    return jsonify([{
+        'id': goal.id,
+        'title': goal.title,
+        'description': goal.description,
+        'category': goal.category,
+        'progress': goal.progress,
+        'target_date': goal.target_date.isoformat(),
+        'created_at': goal.created_at.isoformat()
+    } for goal in goals])
+
+@app.route('/api/goals/<int:goal_id>', methods=['GET', 'PUT', 'DELETE'])
 @login_required_if_enabled
 def manage_goal(goal_id):
     goal = Goal.query.get_or_404(goal_id)
-    if goal.user_id != current_user.id:
+    if AUTH_REQUIRED and goal.user_id != current_user.id:
         return jsonify({'error': 'Unauthorized'}), 403
-    
+        
     if request.method == 'DELETE':
         db.session.delete(goal)
         db.session.commit()
         return jsonify({'status': 'success'})
-    
+        
     elif request.method == 'PUT':
         data = request.get_json()
         goal.title = data['title']
@@ -102,202 +164,178 @@ def manage_goal(goal_id):
         goal.target_date = datetime.strptime(data['target_date'], '%Y-%m-%d')
         db.session.commit()
         return jsonify({'status': 'success'})
-    
+        
     # GET method
     return jsonify({
         'id': goal.id,
         'title': goal.title,
         'description': goal.description,
-        'progress': goal.progress,
         'category': goal.category,
-        'created_at': goal.created_at.isoformat(),
+        'progress': goal.progress,
         'target_date': goal.target_date.isoformat(),
+        'created_at': goal.created_at.isoformat(),
         'tasks': [{
             'id': task.id,
             'title': task.title,
             'description': task.description,
             'priority': task.priority,
-            'completed': task.completed,
-            'due_date': task.due_date.isoformat() if task.due_date else None
+            'completed': task.completed
         } for task in goal.tasks]
     })
 
-@app.route('/api/goals/suggest-tasks', methods=['POST'])
-@login_required_if_enabled
-def suggest_tasks():
-    data = request.get_json()
-    goal_title = data.get('title', '')
-    goal_description = data.get('description', '')
-    
-    try:
-        completion = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a goal planning assistant. Generate 5 specific, actionable tasks that will help achieve the goal. Format your response as a JSON array where each task has 'title' (short, action-oriented) and 'description' (detailed explanation) fields."},
-                {"role": "user", "content": f"Generate specific, actionable tasks for this goal: {goal_title}. Additional context: {goal_description}"}
-            ]
-        )
-        
-        tasks_str = completion.choices[0].message.content.strip()
-        # Handle cases where response might include markdown code blocks
-        if '```json' in tasks_str:
-            tasks_str = tasks_str.split('```json')[1].split('```')[0]
-        elif '```' in tasks_str:
-            tasks_str = tasks_str.split('```')[1].split('```')[0]
-            
-        tasks = json.loads(tasks_str)
-        # Ensure response is an array
-        if not isinstance(tasks, list):
-            tasks = tasks.get('tasks', [])
-            
-        return jsonify(tasks)
-    except Exception as e:
-        print(f"Error generating tasks: {str(e)}")
-        return jsonify({'error': 'Failed to generate tasks'}), 500
-
-@app.route('/api/goals', methods=['GET', 'POST'])
-@login_required_if_enabled
-def handle_goals():
-    if request.method == 'POST':
-        data = request.get_json()
-        goal = Goal(
-            title=data['title'],
-            description=data['description'],
-            target_date=datetime.strptime(data['target_date'], '%Y-%m-%d'),
-            category=data['category'],
-            user_id=current_user.id
-        )
-        db.session.add(goal)
-        db.session.flush()  # This gives us the goal.id
-        
-        # Create associated tasks
-        if 'tasks' in data:
-            for task_data in data['tasks']:
-                task = Task(
-                    title=task_data['title'],
-                    description=task_data['description'],
-                    priority='normal',
-                    due_date=goal.target_date,
-                    user_id=current_user.id,
-                    goal_id=goal.id
-                )
-                db.session.add(task)
-        
-        db.session.commit()
-        return jsonify({'status': 'success'})
-    
-    goals = Goal.query.filter_by(user_id=current_user.id).all()
-    return jsonify([{
-        'id': g.id,
-        'title': g.title,
-        'progress': g.progress,
-        'category': g.category
-    } for g in goals])
-
 @app.route('/api/tasks', methods=['GET', 'POST'])
 @login_required_if_enabled
-def handle_tasks():
+def api_tasks():
     if request.method == 'POST':
         data = request.get_json()
         task = Task(
             title=data['title'],
             description=data['description'],
             priority=data['priority'],
-            due_date=datetime.strptime(data['due_date'], '%Y-%m-%d'),
-            user_id=current_user.id
+            due_date=datetime.strptime(data['due_date'], '%Y-%m-%d') if data['due_date'] else None,
+            user_id=current_user.id if AUTH_REQUIRED else 1
         )
         db.session.add(task)
         db.session.commit()
         return jsonify({'status': 'success'})
-    
-    tasks = Task.query.filter_by(user_id=current_user.id).all()
+        
+    tasks = Task.query.filter_by(
+        user_id=current_user.id if AUTH_REQUIRED else 1
+    ).all()
     return jsonify([{
-        'id': t.id,
-        'title': t.title,
-        'priority': t.priority,
-        'completed': t.completed
-    } for t in tasks])
+        'id': task.id,
+        'title': task.title,
+        'description': task.description,
+        'priority': task.priority,
+        'completed': task.completed,
+        'due_date': task.due_date.isoformat() if task.due_date else None
+    } for task in tasks])
+
+@app.route('/api/tasks/<int:task_id>', methods=['GET', 'PUT', 'DELETE'])
+@login_required_if_enabled
+def manage_task(task_id):
+    task = Task.query.get_or_404(task_id)
+    if AUTH_REQUIRED and task.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+        
+    if request.method == 'DELETE':
+        db.session.delete(task)
+        db.session.commit()
+        return jsonify({'status': 'success'})
+        
+    elif request.method == 'PUT':
+        data = request.get_json()
+        task.title = data['title']
+        task.description = data['description']
+        task.priority = data['priority']
+        task.due_date = datetime.strptime(data['due_date'], '%Y-%m-%d') if data['due_date'] else None
+        task.completed = data['completed']
+        if task.completed and not task.completed_at:
+            task.completed_at = datetime.utcnow()
+        elif not task.completed:
+            task.completed_at = None
+        db.session.commit()
+        return jsonify({'status': 'success'})
+        
+    # GET method
+    return jsonify({
+        'id': task.id,
+        'title': task.title,
+        'description': task.description,
+        'priority': task.priority,
+        'due_date': task.due_date.isoformat() if task.due_date else None,
+        'completed': task.completed,
+        'created_at': task.created_at.isoformat(),
+        'completed_at': task.completed_at.isoformat() if task.completed_at else None,
+        'goal_id': task.goal_id
+    })
 
 @app.route('/api/habits', methods=['GET', 'POST'])
 @login_required_if_enabled
-def handle_habits():
+def api_habits():
     if request.method == 'POST':
         data = request.get_json()
         habit = Habit(
             title=data['title'],
             description=data['description'],
             frequency=data['frequency'],
-            user_id=current_user.id
+            user_id=current_user.id if AUTH_REQUIRED else 1
         )
         db.session.add(habit)
         db.session.commit()
         return jsonify({'status': 'success'})
-    
-    habits = Habit.query.filter_by(user_id=current_user.id).all()
+        
+    habits = Habit.query.filter_by(
+        user_id=current_user.id if AUTH_REQUIRED else 1
+    ).all()
     return jsonify([{
-        'id': h.id,
-        'title': h.title,
-        'current_streak': h.current_streak,
-        'best_streak': h.best_streak
-    } for h in habits])
+        'id': habit.id,
+        'title': habit.title,
+        'description': habit.description,
+        'frequency': habit.frequency,
+        'current_streak': habit.current_streak,
+        'best_streak': habit.best_streak
+    } for habit in habits])
 
-@app.route('/api/analytics/insights', methods=['GET'])
+# Analytics API Routes
+@app.route('/api/analytics/insights')
 @login_required_if_enabled
-def get_insights():
-    # Generate fresh insights
-    AnalyticsService.generate_insights(current_user.id)
-    insights = AnalyticsService.get_user_insights(current_user.id)
-    
+def get_analytics_insights():
+    user_id = current_user.id if AUTH_REQUIRED else 1
+    insights = AnalyticsService.get_user_insights(user_id)
     return jsonify([{
-        'id': i.id,
-        'type': i.insight_type,
-        'content': i.content,
-        'recommendations': i.recommendations,
-        'created_at': i.created_at.isoformat()
-    } for i in insights])
+        'id': insight.id,
+        'type': insight.insight_type,
+        'content': insight.content,
+        'recommendations': insight.recommendations,
+        'created_at': insight.created_at.isoformat()
+    } for insight in insights])
 
-@app.route('/api/analytics/trends', methods=['GET'])
+@app.route('/api/analytics/trends')
 @login_required_if_enabled
 def get_analytics_trends():
-    trends = AnalyticsService.get_productivity_trends(current_user.id)
-    completion_rates = AnalyticsService.get_completion_rate_by_priority(current_user.id)
+    user_id = current_user.id if AUTH_REQUIRED else 1
+    
+    # Calculate daily analytics
+    AnalyticsService.calculate_daily_analytics(user_id)
+    
+    # Get productivity trends
+    trends = AnalyticsService.get_productivity_trends(user_id)
+    
+    # Get completion rates by priority
+    completion_rates = AnalyticsService.get_completion_rate_by_priority(user_id)
     
     return jsonify({
         'productivity': trends,
         'completion_rates': completion_rates
     })
 
-@app.route('/api/voice-notes', methods=['GET', 'POST'])
+@app.route('/api/analytics/acknowledge-insight/<int:insight_id>', methods=['POST'])
 @login_required_if_enabled
-def handle_voice_notes():
-    if request.method == 'POST':
-        data = request.get_json()
-        voice_note = VoiceNote(
-            transcription=data['transcription'],
-            note_type=data['note_type'],
-            user_id=current_user.id
-        )
-        db.session.add(voice_note)
-        db.session.commit()
-        return jsonify({'status': 'success', 'id': voice_note.id})
-    
-    voice_notes = VoiceNote.query.filter_by(user_id=current_user.id).all()
-    return jsonify([{
-        'id': n.id,
-        'transcription': n.transcription,
-        'note_type': n.note_type,
-        'created_at': n.created_at.isoformat()
-    } for n in voice_notes])
+def acknowledge_insight(insight_id):
+    insight = AIInsight.query.get_or_404(insight_id)
+    if AUTH_REQUIRED and insight.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+        
+    insight.is_acknowledged = True
+    db.session.commit()
+    return jsonify({'status': 'success'})
 
 @app.route('/api/reset-data', methods=['POST'])
 @login_required_if_enabled
-def reset_data():
-    with app.app_context():
-        db.drop_all()
-        db.create_all()
-        get_or_create_test_user()
+def reset_analytics_data():
+    user_id = current_user.id if AUTH_REQUIRED else 1
+    
+    # Clear existing analytics data
+    UserAnalytics.query.filter_by(user_id=user_id).delete()
+    AIInsight.query.filter_by(user_id=user_id).delete()
+    db.session.commit()
+    
+    # Recalculate analytics
+    AnalyticsService.calculate_daily_analytics(user_id)
+    AnalyticsService.generate_insights(user_id)
+    
     return jsonify({'status': 'success'})
 
-with app.app_context():
-    db.create_all()
-    get_or_create_test_user()
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
