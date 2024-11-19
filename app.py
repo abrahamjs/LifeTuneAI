@@ -337,6 +337,16 @@ def transcribe_audio():
         print(f"Whisper API error: {str(e)}")
         return jsonify({'error': 'Speech recognition failed. Please try again.'}), 500
 
+@app.route('/api/analytics/trends')
+@login_required_if_enabled
+def get_analytics_trends():
+    trends = AnalyticsService.get_productivity_trends(current_user.id)
+    completion_rates = AnalyticsService.get_completion_rate_by_priority(current_user.id)
+    return jsonify({
+        'productivity': trends,
+        'completion_rates': completion_rates
+    })
+
 with app.app_context():
     db.create_all()
     create_dummy_data()

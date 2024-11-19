@@ -8,12 +8,21 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function loadAnalytics() {
-    fetch('/api/analytics/insights')
-        .then(response => response.json())
-        .then(data => {
-            updateInsightsList(data);
-            generateCharts(data);
-        });
+    Promise.all([
+        fetch('/api/analytics/insights').then(response => response.json()),
+        fetch('/api/analytics/trends').then(response => response.json())
+    ])
+    .then(([insights, trends]) => {
+        updateInsightsList(insights);
+        updateProductivityChart(trends);
+        updateTaskCompletionChart(trends);
+        updateHabitStreakChart(trends);
+    })
+    .catch(error => {
+        console.error('Error loading analytics:', error);
+        document.getElementById('insightsList').innerHTML = 
+            '<div class="alert alert-danger">Error loading analytics data. Please try again later.</div>';
+    });
 }
 
 function updateInsightsList(insights) {
@@ -65,16 +74,17 @@ function acknowledgeInsight(insightId) {
     });
 }
 
-function generateCharts(data) {
-    // Productivity Chart
+function updateProductivityChart(data) {
     const productivityCtx = document.getElementById('productivityChart');
+    if (!productivityCtx) return;
+
     new Chart(productivityCtx, {
         type: 'line',
         data: {
-            labels: data.map(d => new Date(d.created_at).toLocaleDateString()),
+            labels: data.productivity.dates,
             datasets: [{
                 label: 'Productivity Score',
-                data: data.map(d => d.productivity_score || 0),
+                data: data.productivity.productivity_scores,
                 borderColor: 'rgba(var(--bs-info-rgb), 1)',
                 tension: 0.4,
                 fill: true,
@@ -83,6 +93,7 @@ function generateCharts(data) {
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             plugins: {
                 legend: {
                     position: 'top',
@@ -95,25 +106,24 @@ function generateCharts(data) {
             scales: {
                 y: {
                     beginAtZero: true,
-                    max: 100,
-                    title: {
-                        display: true,
-                        text: 'Score'
-                    }
+                    max: 100
                 }
             }
         }
     });
+}
 
-    // Task Completion Chart
+function updateTaskCompletionChart(data) {
     const taskCtx = document.getElementById('taskCompletionChart');
+    if (!taskCtx) return;
+
     new Chart(taskCtx, {
         type: 'bar',
         data: {
-            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+            labels: data.productivity.dates.slice(-7),
             datasets: [{
                 label: 'Tasks Completed',
-                data: data.slice(-7).map(d => d.tasks_completed || 0),
+                data: data.productivity.tasks_completed.slice(-7),
                 backgroundColor: 'rgba(var(--bs-success-rgb), 0.5)',
                 borderColor: 'rgba(var(--bs-success-rgb), 1)',
                 borderWidth: 1
@@ -121,66 +131,29 @@ function generateCharts(data) {
         },
         options: {
             responsive: true,
-            plugins: {
-                legend: {
-                    position: 'top',
-                },
-                title: {
-                    display: true,
-                    text: 'Weekly Task Completion'
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        stepSize: 1
-                    },
-                    title: {
-                        display: true,
-                        text: 'Tasks'
-                    }
-                }
-            }
+            maintainAspectRatio: false
         }
     });
+}
 
-    // Habit Streak Chart
+function updateHabitStreakChart(data) {
     const habitCtx = document.getElementById('habitStreakChart');
+    if (!habitCtx) return;
+
     new Chart(habitCtx, {
         type: 'radar',
         data: {
-            labels: data.map(d => new Date(d.created_at).toLocaleDateString()),
+            labels: ['All Habits', 'Daily Habits', 'Weekly Habits'],
             datasets: [{
                 label: 'Active Habits',
-                data: data.map(d => d.active_habits || 0),
+                data: data.productivity.active_habits.slice(-3),
                 borderColor: 'rgba(var(--bs-warning-rgb), 1)',
-                backgroundColor: 'rgba(var(--bs-warning-rgb), 0.2)',
-                pointBackgroundColor: 'rgba(var(--bs-warning-rgb), 1)',
-                pointBorderColor: '#fff',
-                pointHoverBackgroundColor: '#fff',
-                pointHoverBorderColor: 'rgba(var(--bs-warning-rgb), 1)'
+                backgroundColor: 'rgba(var(--bs-warning-rgb), 0.2)'
             }]
         },
         options: {
             responsive: true,
-            plugins: {
-                legend: {
-                    position: 'top',
-                },
-                title: {
-                    display: true,
-                    text: 'Habit Activity Pattern'
-                }
-            },
-            scales: {
-                r: {
-                    beginAtZero: true,
-                    ticks: {
-                        stepSize: 1
-                    }
-                }
-            }
+            maintainAspectRatio: false
         }
     });
 }
