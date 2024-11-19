@@ -224,17 +224,24 @@ def transcribe_audio():
         return jsonify({'error': 'Empty audio file'}), 400
 
     try:
-        # Use OpenAI's Whisper API for transcription
-        response = openai.audio.transcriptions.create(
-            model="whisper-1",
-            file=audio_file,
-            response_format="text"
-        )
+        # Save temporary file
+        temp_path = f"/tmp/{datetime.now().timestamp()}.wav"
+        audio_file.save(temp_path)
         
+        with open(temp_path, 'rb') as audio:
+            # Use OpenAI's Whisper API for transcription
+            response = openai.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio
+            )
+        
+        # Clean up temp file
+        os.remove(temp_path)
         return jsonify({'text': response})
     except Exception as e:
         print(f"Whisper API error: {str(e)}")
         return jsonify({'error': 'Transcription failed'}), 500
 
 with app.app_context():
+    db.drop_all()
     db.create_all()
