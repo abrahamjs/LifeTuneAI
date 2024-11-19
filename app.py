@@ -40,100 +40,6 @@ def get_or_create_test_user():
         db.session.commit()
     return test_user
 
-def create_dummy_data():
-    test_user = get_or_create_test_user()
-    
-    # Clear existing data
-    Goal.query.filter_by(user_id=test_user.id).delete()
-    Task.query.filter_by(user_id=test_user.id).delete()
-    Habit.query.filter_by(user_id=test_user.id).delete()
-    UserAnalytics.query.filter_by(user_id=test_user.id).delete()
-    AIInsight.query.filter_by(user_id=test_user.id).delete()
-    db.session.commit()
-    
-    # Create dummy goals
-    goals = [
-        Goal(title="Learn Python", description="Master Python programming", 
-             target_date=datetime.utcnow() + timedelta(days=30), progress=65, 
-             category="education", user_id=test_user.id),
-        Goal(title="Exercise Routine", description="Establish workout habit", 
-             target_date=datetime.utcnow() + timedelta(days=60), progress=40, 
-             category="health", user_id=test_user.id),
-        Goal(title="Reading Challenge", description="Read 12 books this year", 
-             target_date=datetime.utcnow() + timedelta(days=90), progress=75, 
-             category="personal", user_id=test_user.id)
-    ]
-    
-    # Create dummy tasks
-    tasks = [
-        Task(title="Complete Project Documentation", description="Write technical docs", 
-             priority="urgent", due_date=datetime.utcnow() + timedelta(days=2), 
-             user_id=test_user.id),
-        Task(title="Weekly Team Meeting", description="Discuss progress", 
-             priority="important", due_date=datetime.utcnow() + timedelta(days=1), 
-             completed=True, user_id=test_user.id),
-        Task(title="Review Code PR", description="Review team's code", 
-             priority="normal", due_date=datetime.utcnow() + timedelta(days=3), 
-             user_id=test_user.id)
-    ]
-    
-    # Create dummy habits
-    habits = [
-        Habit(title="Morning Meditation", description="15 minutes meditation", 
-              frequency="daily", current_streak=5, best_streak=10, 
-              user_id=test_user.id),
-        Habit(title="Exercise", description="30 minutes workout", 
-              frequency="daily", current_streak=3, best_streak=15, 
-              user_id=test_user.id),
-        Habit(title="Reading", description="Read for 30 minutes", 
-              frequency="daily", current_streak=7, best_streak=7, 
-              user_id=test_user.id)
-    ]
-    
-    # Add all dummy data
-    db.session.add_all(goals + tasks + habits)
-    db.session.commit()
-    
-    # Create analytics data
-    create_analytics_data(test_user.id)
-    return test_user
-
-def create_analytics_data(user_id):
-    # Create dummy analytics
-    today = datetime.utcnow().date()
-    for i in range(7):
-        date = today - timedelta(days=i)
-        analytics = UserAnalytics(
-            user_id=user_id,
-            date=date,
-            productivity_score=random.randint(65, 95),
-            tasks_completed=random.randint(3, 8),
-            goals_progress=random.randint(50, 90),
-            active_habits=random.randint(2, 3),
-            focus_time=random.randint(120, 240)
-        )
-        db.session.add(analytics)
-    
-    # Create dummy insights
-    insights = [
-        AIInsight(
-            user_id=user_id,
-            insight_type="productivity",
-            content="Your productivity has increased by 15% this week. Great job maintaining focus during work sessions!",
-            recommendations="Try to take regular breaks to maintain this momentum.",
-            created_at=datetime.utcnow() - timedelta(hours=2)
-        ),
-        AIInsight(
-            user_id=user_id,
-            insight_type="habits",
-            content="Your meditation streak is building nicely. You've been consistent with morning meditation for 5 days.",
-            recommendations="Consider increasing session duration to 20 minutes for better results.",
-            created_at=datetime.utcnow() - timedelta(hours=1)
-        )
-    ]
-    db.session.add_all(insights)
-    db.session.commit()
-
 def login_required_if_enabled(f):
     if AUTH_REQUIRED:
         return login_required(f)
@@ -240,13 +146,28 @@ def suggest_tasks():
         completion = openai.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You are a goal planning assistant. Generate actionable tasks for achieving a goal. Return response in JSON format with an array of tasks, each having 'title' and 'description' fields."},
-                {"role": "user", "content": f"Generate tasks for this goal: {goal_title}. Description: {goal_description}"}
+                {"role": "system", "content": "You are a goal planning assistant. Generate 5 specific, actionable tasks that will help achieve the goal. Format your response as a JSON array where each task has 'title' (short, action-oriented) and 'description' (detailed explanation) fields."},
+                {"role": "user", "content": f"Generate specific, actionable tasks for this goal: {goal_title}. Additional context: {goal_description}"}
             ]
         )
         
-        tasks = json.loads(completion.choices[0].message.content)
-        return jsonify(tasks)
+        # Extract the JSON string from the response and parse it
+        try:
+            tasks_str = completion.choices[0].message.content.strip()
+            # Handle cases where response might include markdown code blocks
+            if '```json' in tasks_str:
+                tasks_str = tasks_str.split('```json')[1].split('```')[0]
+            elif '```' in tasks_str:
+                tasks_str = tasks_str.split('```')[1].split('```')[0]
+            tasks = json.loads(tasks_str)
+            # Ensure response is an array
+            if not isinstance(tasks, list):
+                tasks = tasks.get('tasks', [])
+            return jsonify(tasks)
+        except json.JSONDecodeError as e:
+            print(f"JSON parse error: {str(e)}, Content: {tasks_str}")
+            return jsonify({'error': 'Invalid response format'}), 500
+            
     except Exception as e:
         print(f"Error generating tasks: {str(e)}")
         return jsonify({'error': 'Failed to generate tasks'}), 500
@@ -338,29 +259,9 @@ def handle_habits():
 @app.route('/api/analytics/insights', methods=['GET'])
 @login_required_if_enabled
 def get_insights():
-    test_user = get_or_create_test_user()
-    insights = AnalyticsService.get_user_insights(test_user.id)
-    
-    # If no insights exist, create dummy insights
-    if not insights:
-        insights = [
-            AIInsight(
-                user_id=test_user.id,
-                insight_type="productivity",
-                content="Your productivity score has been consistently above 80% this week.",
-                recommendations="Try to maintain this momentum by taking regular breaks.",
-                created_at=datetime.utcnow()
-            ),
-            AIInsight(
-                user_id=test_user.id,
-                insight_type="habits",
-                content="You've maintained a 5-day streak in your morning meditation habit.",
-                recommendations="Consider increasing your session duration gradually.",
-                created_at=datetime.utcnow()
-            )
-        ]
-        db.session.add_all(insights)
-        db.session.commit()
+    # Generate fresh insights
+    AnalyticsService.generate_insights(current_user.id)
+    insights = AnalyticsService.get_user_insights(current_user.id)
     
     return jsonify([{
         'id': i.id,
@@ -379,6 +280,17 @@ def acknowledge_insight(insight_id):
     insight.is_acknowledged = True
     db.session.commit()
     return jsonify({'status': 'success'})
+
+@app.route('/api/analytics/trends', methods=['GET'])
+@login_required_if_enabled
+def get_analytics_trends():
+    trends = AnalyticsService.get_productivity_trends(current_user.id)
+    completion_rates = AnalyticsService.get_completion_rate_by_priority(current_user.id)
+    
+    return jsonify({
+        'productivity': trends,
+        'completion_rates': completion_rates
+    })
 
 @app.route('/api/voice-notes', methods=['GET', 'POST'])
 @login_required_if_enabled
@@ -428,40 +340,15 @@ def transcribe_audio():
         print(f"Whisper API error: {str(e)}")
         return jsonify({'error': 'Speech recognition failed. Please try again.'}), 500
 
-@app.route('/api/analytics/trends')
-@login_required_if_enabled
-def get_analytics_trends():
-    test_user = get_or_create_test_user()
-    trends = AnalyticsService.get_productivity_trends(test_user.id)
-    completion_rates = AnalyticsService.get_completion_rate_by_priority(test_user.id)
-    
-    # Ensure proper data structure
-    if not trends.get('dates'):
-        # Generate sample data if no trends exist
-        today = datetime.utcnow().date()
-        trends = {
-            'dates': [(today - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(7)],
-            'productivity_scores': [random.randint(65, 95) for _ in range(7)],
-            'tasks_completed': [random.randint(3, 8) for _ in range(7)],
-            'active_habits': [random.randint(2, 3) for _ in range(7)],
-            'focus_time': [random.randint(120, 240) for _ in range(7)],
-            'goals_progress': [random.randint(50, 90) for _ in range(7)]
-        }
-    
-    return jsonify({
-        'productivity': trends,
-        'completion_rates': completion_rates
-    })
-
 @app.route('/api/reset-data', methods=['POST'])
 @login_required_if_enabled
 def reset_data():
     with app.app_context():
         db.drop_all()
         db.create_all()
-        create_dummy_data()
+        get_or_create_test_user()
     return jsonify({'status': 'success'})
 
 with app.app_context():
     db.create_all()
-    create_dummy_data()
+    get_or_create_test_user()

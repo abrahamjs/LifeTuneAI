@@ -31,8 +31,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // Get selected tasks
         const selectedTasks = Array.from(document.querySelectorAll('#taskSuggestionsList input[type="checkbox"]:checked'))
             .map(checkbox => ({
-                title: checkbox.nextElementSibling.textContent.trim(),
-                description: checkbox.closest('.list-group-item').querySelector('small').textContent
+                title: checkbox.nextElementSibling.querySelector('.fw-bold').textContent.trim(),
+                description: checkbox.nextElementSibling.querySelector('small').textContent
             }));
 
         try {
@@ -71,96 +71,98 @@ async function suggestTasks(title, description) {
             body: JSON.stringify({ title, description })
         });
         
-        const tasks = await response.json();
+        const data = await response.json();
         const suggestedTasks = document.getElementById('suggestedTasks');
         const tasksList = document.getElementById('taskSuggestionsList');
         
-        if (tasks.error) {
-            console.error('Error getting task suggestions:', tasks.error);
+        if (data.error) {
+            console.error('Error getting task suggestions:', data.error);
+            tasksList.innerHTML = `
+                <div class="alert alert-danger">
+                    Failed to generate tasks. Please try again or add tasks manually.
+                </div>
+            `;
+            suggestedTasks.classList.remove('d-none');
+            return;
+        }
+        
+        if (!Array.isArray(data) || data.length === 0) {
+            tasksList.innerHTML = `
+                <div class="alert alert-warning">
+                    No task suggestions available. Try adding more details to your goal.
+                </div>
+            `;
+            suggestedTasks.classList.remove('d-none');
             return;
         }
 
-        tasksList.innerHTML = tasks.map(task => `
-            <div class="list-group-item">
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" value="" id="task_${task.title}">
-                    <label class="form-check-label" for="task_${task.title}">
-                        ${task.title}
+        tasksList.innerHTML = data.map(task => `
+            <div class="list-group-item task-suggestion-item">
+                <div class="form-check d-flex align-items-center">
+                    <input class="form-check-input me-2" type="checkbox" value="" id="task_${btoa(task.title)}">
+                    <label class="form-check-label flex-grow-1" for="task_${btoa(task.title)}">
+                        <div class="fw-bold">${task.title}</div>
+                        <small class="text-muted d-block">${task.description}</small>
                     </label>
-                </div>
-                <small class="text-muted d-block">${task.description}</small>
-                <div class="mt-2">
-                    <button type="button" class="btn btn-outline-secondary btn-sm edit-task">
-                        <i class="bi bi-pencil"></i> Edit
-                    </button>
+                    <div class="ms-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm edit-task">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
         `).join('');
         
         suggestedTasks.classList.remove('d-none');
         
-        // Add event listeners for edit buttons
+        // Add edit functionality
         document.querySelectorAll('.edit-task').forEach(button => {
-            button.addEventListener('click', function() {
-                const listItem = this.closest('.list-group-item');
-                const title = listItem.querySelector('.form-check-label').textContent.trim();
-                const description = listItem.querySelector('small').textContent.trim();
-                
-                // Replace the content with editable fields
-                listItem.innerHTML = `
-                    <div class="mb-2">
-                        <input type="text" class="form-control" value="${title}">
-                    </div>
-                    <div class="mb-2">
-                        <textarea class="form-control">${description}</textarea>
-                    </div>
-                    <div>
-                        <button type="button" class="btn btn-primary btn-sm save-edit">Save</button>
-                        <button type="button" class="btn btn-secondary btn-sm cancel-edit">Cancel</button>
-                    </div>
-                `;
-                
-                // Add event listeners for save and cancel buttons
-                listItem.querySelector('.save-edit').addEventListener('click', function() {
-                    const newTitle = listItem.querySelector('input').value;
-                    const newDescription = listItem.querySelector('textarea').value;
-                    listItem.innerHTML = `
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" value="" id="task_${newTitle}">
-                            <label class="form-check-label" for="task_${newTitle}">
-                                ${newTitle}
-                            </label>
-                        </div>
-                        <small class="text-muted d-block">${newDescription}</small>
-                        <div class="mt-2">
-                            <button type="button" class="btn btn-outline-secondary btn-sm edit-task">
-                                <i class="bi bi-pencil"></i> Edit
-                            </button>
-                        </div>
-                    `;
-                });
-                
-                listItem.querySelector('.cancel-edit').addEventListener('click', function() {
-                    listItem.innerHTML = `
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" value="" id="task_${title}">
-                            <label class="form-check-label" for="task_${title}">
-                                ${title}
-                            </label>
-                        </div>
-                        <small class="text-muted d-block">${description}</small>
-                        <div class="mt-2">
-                            <button type="button" class="btn btn-outline-secondary btn-sm edit-task">
-                                <i class="bi bi-pencil"></i> Edit
-                            </button>
-                        </div>
-                    `;
-                });
-            });
+            button.addEventListener('click', handleTaskEdit);
         });
     } catch (error) {
         console.error('Error getting task suggestions:', error);
+        document.getElementById('taskSuggestionsList').innerHTML = `
+            <div class="alert alert-danger">
+                An error occurred while generating tasks. Please try again.
+            </div>
+        `;
     }
+}
+
+function handleTaskEdit(event) {
+    const listItem = event.target.closest('.task-suggestion-item');
+    const titleInput = listItem.querySelector('.fw-bold');
+    const descriptionInput = listItem.querySelector('small');
+    const originalTitle = titleInput.textContent.trim();
+    const originalDescription = descriptionInput.textContent.trim();
+    
+    // Replace the content with editable fields
+    titleInput.innerHTML = `<input type="text" class="form-control" value="${originalTitle}">`;
+    descriptionInput.innerHTML = `<textarea class="form-control">${originalDescription}</textarea>`;
+    
+    // Add Save and Cancel buttons
+    const editButtonsContainer = document.createElement('div');
+    editButtonsContainer.classList.add('mt-2');
+    editButtonsContainer.innerHTML = `
+        <button type="button" class="btn btn-primary btn-sm save-edit">Save</button>
+        <button type="button" class="btn btn-secondary btn-sm cancel-edit">Cancel</button>
+    `;
+    listItem.querySelector('.form-check').appendChild(editButtonsContainer);
+
+    // Add event listeners for Save and Cancel buttons
+    listItem.querySelector('.save-edit').addEventListener('click', () => {
+        const newTitle = listItem.querySelector('input').value;
+        const newDescription = listItem.querySelector('textarea').value;
+        titleInput.innerHTML = `<div class="fw-bold">${newTitle}</div>`;
+        descriptionInput.innerHTML = `<small class="text-muted d-block">${newDescription}</small>`;
+        editButtonsContainer.remove();
+    });
+    
+    listItem.querySelector('.cancel-edit').addEventListener('click', () => {
+        titleInput.textContent = originalTitle;
+        descriptionInput.textContent = originalDescription;
+        editButtonsContainer.remove();
+    });
 }
 
 function loadGoals() {
