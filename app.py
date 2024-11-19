@@ -1,15 +1,12 @@
 import os
 from flask import Flask, render_template, jsonify, request, redirect, url_for, flash
-from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
-from sqlalchemy.orm import DeclarativeBase
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
+from database import db
+from models import User, Goal, Task, Habit, HabitLog, VoiceNote, UserAnalytics, AIInsight
+from services.analytics import AnalyticsService
 
-class Base(DeclarativeBase):
-    pass
-
-db = SQLAlchemy(model_class=Base)
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY") or "a secret key"
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
@@ -25,13 +22,11 @@ login_manager.login_view = 'login'
 
 @login_manager.user_loader
 def load_user(user_id):
-    from models import User
     return User.query.get(int(user_id))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        from models import User
         email = request.form.get('email')
         password = request.form.get('password')
         user = User.query.filter_by(email=email).first()
@@ -44,7 +39,6 @@ def login():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        from models import User
         email = request.form.get('email')
         username = request.form.get('username')
         password = request.form.get('password')
@@ -77,7 +71,10 @@ def logout():
 @app.route('/')
 @login_required
 def dashboard():
-    return render_template('dashboard.html')
+    # Generate fresh analytics before showing dashboard
+    AnalyticsService.calculate_daily_analytics(current_user.id)
+    insights = AnalyticsService.get_user_insights(current_user.id)
+    return render_template('dashboard.html', insights=insights)
 
 @app.route('/goals')
 @login_required
@@ -94,10 +91,14 @@ def tasks():
 def habits():
     return render_template('habits.html')
 
+@app.route('/analytics')
+@login_required
+def analytics():
+    return render_template('analytics.html')
+
 @app.route('/api/goals', methods=['GET', 'POST'])
 @login_required
 def handle_goals():
-    from models import Goal
     if request.method == 'POST':
         data = request.json
         goal = Goal(
@@ -121,7 +122,6 @@ def handle_goals():
 @app.route('/api/tasks', methods=['GET', 'POST'])
 @login_required
 def handle_tasks():
-    from models import Task
     if request.method == 'POST':
         data = request.json
         task = Task(
@@ -145,7 +145,6 @@ def handle_tasks():
 @app.route('/api/habits', methods=['GET', 'POST'])
 @login_required
 def handle_habits():
-    from models import Habit, HabitLog
     if request.method == 'POST':
         data = request.json
         habit = Habit(
@@ -165,10 +164,31 @@ def handle_habits():
         'best_streak': h.best_streak
     } for h in habits])
 
+@app.route('/api/analytics/insights', methods=['GET'])
+@login_required
+def get_insights():
+    insights = AnalyticsService.get_user_insights(current_user.id)
+    return jsonify([{
+        'id': i.id,
+        'type': i.insight_type,
+        'content': i.content,
+        'recommendations': i.recommendations,
+        'created_at': i.created_at.isoformat()
+    } for i in insights])
+
+@app.route('/api/analytics/acknowledge-insight/<int:insight_id>', methods=['POST'])
+@login_required
+def acknowledge_insight(insight_id):
+    insight = AIInsight.query.get_or_404(insight_id)
+    if insight.user_id != current_user.id:
+        return jsonify({'status': 'error', 'message': 'Unauthorized'}), 403
+    insight.is_acknowledged = True
+    db.session.commit()
+    return jsonify({'status': 'success'})
+
 @app.route('/api/voice-notes', methods=['GET', 'POST'])
 @login_required
 def handle_voice_notes():
-    from models import VoiceNote
     if request.method == 'POST':
         data = request.json
         voice_note = VoiceNote(
@@ -189,5 +209,4 @@ def handle_voice_notes():
     } for n in voice_notes])
 
 with app.app_context():
-    import models
     db.create_all()
