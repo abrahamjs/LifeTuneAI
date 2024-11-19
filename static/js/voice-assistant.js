@@ -5,6 +5,8 @@ class VoiceAssistant {
         this.isListening = false;
         this.mediaRecorder = null;
         this.audioChunks = [];
+        this.listeningAnimation = document.getElementById('listeningAnimation');
+        this.voiceError = document.getElementById('voiceError');
         this.setupSpeechRecognition();
     }
 
@@ -55,6 +57,7 @@ class VoiceAssistant {
             this.recognition.onend = () => {
                 this.isListening = false;
                 document.getElementById('voiceButton').classList.remove('listening');
+                this.listeningAnimation.classList.add('d-none');
             };
         }
     }
@@ -79,7 +82,9 @@ class VoiceAssistant {
             this.processVoiceCommand(transcript);
         } catch (error) {
             console.error('Error in Whisper transcription:', error);
-            // If Whisper fails, try Web Speech API as fallback
+            this.voiceError.textContent = 'Speech recognition failed. Please try again.';
+            this.voiceError.classList.add('show');
+            this.listeningAnimation.classList.add('d-none');
             if (this.recognition) {
                 this.recognition.start();
             } else {
@@ -93,6 +98,7 @@ class VoiceAssistant {
 
     toggleListening() {
         if (this.isListening) {
+            this.listeningAnimation.classList.add('d-none');
             if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
                 this.mediaRecorder.stop();
             } else if (this.recognition) {
@@ -100,6 +106,8 @@ class VoiceAssistant {
             }
             this.isListening = false;
         } else {
+            this.listeningAnimation.classList.remove('d-none');
+            this.voiceError.classList.remove('show');
             if (this.mediaRecorder && this.mediaRecorder.state === 'inactive') {
                 this.audioChunks = [];
                 this.mediaRecorder.start();
