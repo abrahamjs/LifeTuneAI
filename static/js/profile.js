@@ -9,125 +9,140 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function loadProfile() {
     fetch('/api/gamification/profile')
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
         .then(data => {
-            updateProfileInfo(data);
-            updateAchievements(data.achievements);
-            updateChallenges(data.daily_challenges);
-            updateRewardsShop(data);
-            checkForLevelUp(data);
+            try {
+                updateProfileInfo(data);
+                updateAchievements(data.achievements || []);
+                updateChallenges(data.daily_challenges || []);
+                updateRewardsShop(data);
+                checkForLevelUp(data);
+            } catch (error) {
+                console.error('Error updating profile:', error);
+                showNotification('Error updating profile information', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading profile:', error);
+            showNotification('Unable to load profile data', 'error');
+            // Set default values for UI elements
+            setDefaultProfileValues();
         });
 }
 
+function setDefaultProfileValues() {
+    // Set default values when data is unavailable
+    document.getElementById('currentLevel').textContent = '1';
+    document.getElementById('xpProgress').style.width = '0%';
+    document.getElementById('xpText').textContent = 'XP: 0 / 100';
+    document.getElementById('streakCount').textContent = '0';
+    document.getElementById('multiplier').textContent = '1.0';
+    document.getElementById('availablePoints').textContent = 'Points: 0';
+    document.getElementById('achievementsList').innerHTML = '<p class="text-muted">No achievements available</p>';
+    document.getElementById('challengesList').innerHTML = '<p class="text-muted">No active challenges</p>';
+}
+
 function updateProfileInfo(data) {
-    document.getElementById('currentLevel').textContent = data.level;
-    document.getElementById('xpProgress').style.width = `${data.xp_progress}%`;
-    document.getElementById('xpText').textContent = `XP: ${data.experience_points} / ${data.experience_points + data.xp_needed}`;
-    document.getElementById('streakCount').textContent = data.daily_streak;
-    document.getElementById('multiplier').textContent = data.multiplier.toFixed(1);
-    document.getElementById('availablePoints').textContent = `Points: ${data.experience_points}`;
+    try {
+        document.getElementById('currentLevel').textContent = data.level || 1;
+        document.getElementById('xpProgress').style.width = `${data.xp_progress || 0}%`;
+        document.getElementById('xpText').textContent = `XP: ${data.experience_points || 0} / ${(data.experience_points || 0) + (data.xp_needed || 100)}`;
+        document.getElementById('streakCount').textContent = data.daily_streak || 0;
+        document.getElementById('multiplier').textContent = (data.multiplier || 1.0).toFixed(1);
+        document.getElementById('availablePoints').textContent = `Points: ${data.experience_points || 0}`;
+    } catch (error) {
+        console.error('Error updating profile info:', error);
+        setDefaultProfileValues();
+    }
 }
 
 function updateAchievements(achievements) {
-    const container = document.getElementById('achievementsList');
-    container.innerHTML = achievements.map(achievement => `
-        <div class="achievement-card" data-achievement-id="${achievement.badge_type}">
-            <div class="achievement-icon">
-                ${getAchievementIcon(achievement.badge_type)}
+    try {
+        const container = document.getElementById('achievementsList');
+        if (!achievements.length) {
+            container.innerHTML = '<p class="text-muted">No achievements unlocked yet</p>';
+            return;
+        }
+
+        container.innerHTML = achievements.map(achievement => `
+            <div class="achievement-card" data-achievement-id="${achievement.badge_type || ''}">
+                <div class="achievement-icon">
+                    ${getAchievementIcon(achievement.badge_type)}
+                </div>
+                <h6>${achievement.name || 'Unknown Achievement'}</h6>
+                <small class="text-muted">${achievement.description || ''}</small>
+                <div class="mt-2">
+                    <span class="badge bg-success">+${achievement.points_awarded || 0} XP</span>
+                </div>
             </div>
-            <h6>${achievement.name}</h6>
-            <small class="text-muted">${achievement.description}</small>
-            <div class="mt-2">
-                <span class="badge bg-success">+${achievement.points_awarded} XP</span>
-            </div>
-        </div>
-    `).join('');
+        `).join('');
+    } catch (error) {
+        console.error('Error updating achievements:', error);
+        document.getElementById('achievementsList').innerHTML = '<p class="text-muted">Error loading achievements</p>';
+    }
 }
 
 function updateChallenges(challenges) {
-    const container = document.getElementById('challengesList');
-    container.innerHTML = challenges.map(challenge => `
-        <div class="challenge-card ${challenge.completed ? 'completed' : ''}"
-             data-challenge-type="${challenge.type}">
-            <div class="d-flex justify-content-between align-items-start">
-                <div>
-                    <h6>${getChallengeTitle(challenge.type)}</h6>
-                    <p class="mb-2 text-muted">
-                        Progress: ${challenge.current}/${challenge.target}
-                    </p>
+    try {
+        const container = document.getElementById('challengesList');
+        if (!challenges.length) {
+            container.innerHTML = '<p class="text-muted">No active challenges</p>';
+            return;
+        }
+
+        container.innerHTML = challenges.map(challenge => `
+            <div class="challenge-card ${challenge.completed ? 'completed' : ''}"
+                 data-challenge-type="${challenge.type || ''}">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6>${getChallengeTitle(challenge.type)}</h6>
+                        <p class="mb-2 text-muted">
+                            Progress: ${challenge.current || 0}/${challenge.target || 0}
+                        </p>
+                    </div>
+                    <span class="badge bg-primary">+${challenge.reward || 0} XP</span>
                 </div>
-                <span class="badge bg-primary">+${challenge.reward} XP</span>
+                <div class="progress challenge-progress">
+                    <div class="progress-bar" role="progressbar" 
+                         style="width: ${((challenge.current || 0) / (challenge.target || 1) * 100)}%"></div>
+                </div>
             </div>
-            <div class="progress challenge-progress">
-                <div class="progress-bar" role="progressbar" 
-                     style="width: ${(challenge.current / challenge.target * 100)}%"></div>
-            </div>
-        </div>
-    `).join('');
+        `).join('');
+    } catch (error) {
+        console.error('Error updating challenges:', error);
+        document.getElementById('challengesList').innerHTML = '<p class="text-muted">Error loading challenges</p>';
+    }
 }
 
 function updateRewardsShop(data) {
-    const container = document.getElementById('rewardsList');
-    const rewards = getAvailableRewards();
-    container.innerHTML = rewards.map(reward => `
-        <div class="reward-card ${data.experience_points >= reward.cost ? '' : 'locked'}"
-             onclick="purchaseReward(${reward.id})">
-            <div class="reward-icon mb-2">
-                <i class="bi ${reward.icon}"></i>
-            </div>
-            <h6>${reward.name}</h6>
-            <p class="text-muted mb-2">${reward.description}</p>
-            <span class="reward-cost">
-                <i class="bi bi-coin"></i> ${reward.cost}
-            </span>
-            <span class="reward-rarity">${reward.rarity}</span>
-        </div>
-    `).join('');
-}
+    try {
+        const container = document.getElementById('rewardsList');
+        const rewards = getAvailableRewards();
+        const userPoints = data.experience_points || 0;
 
-function getAvailableRewards() {
-    return [
-        {
-            id: 1,
-            name: "Custom Theme",
-            description: "Unlock a custom color theme for your dashboard",
-            cost: 1000,
-            icon: "bi-palette",
-            rarity: "common"
-        },
-        {
-            id: 2,
-            name: "Premium Badge",
-            description: "Show off your dedication with a special profile badge",
-            cost: 2000,
-            icon: "bi-award",
-            rarity: "rare"
-        },
-        {
-            id: 3,
-            name: "Bonus Multiplier",
-            description: "Get 2x XP for the next 24 hours",
-            cost: 3000,
-            icon: "bi-stars",
-            rarity: "rare"
-        },
-        {
-            id: 4,
-            name: "Exclusive Title",
-            description: "Unlock a special title for your profile",
-            cost: 5000,
-            icon: "bi-trophy",
-            rarity: "epic"
-        },
-        {
-            id: 5,
-            name: "Season Pass",
-            description: "Get exclusive access to seasonal rewards",
-            cost: 10000,
-            icon: "bi-ticket-perforated",
-            rarity: "legendary"
-        }
-    ];
+        container.innerHTML = rewards.map(reward => `
+            <div class="reward-card ${userPoints >= reward.cost ? '' : 'locked'}"
+                 onclick="${userPoints >= reward.cost ? `purchaseReward(${reward.id})` : 'showNotification("Not enough points!", "error")'}">
+                <div class="reward-icon mb-2">
+                    <i class="bi ${reward.icon}"></i>
+                </div>
+                <h6>${reward.name}</h6>
+                <p class="text-muted mb-2">${reward.description}</p>
+                <span class="reward-cost">
+                    <i class="bi bi-coin"></i> ${reward.cost}
+                </span>
+                <span class="reward-rarity">${reward.rarity}</span>
+            </div>
+        `).join('');
+    } catch (error) {
+        console.error('Error updating rewards shop:', error);
+        document.getElementById('rewardsList').innerHTML = '<p class="text-muted">Error loading rewards</p>';
+    }
 }
 
 function purchaseReward(rewardId) {
@@ -246,4 +261,49 @@ function getChallengeTitle(type) {
         'goal_progress': 'Make Progress on Goals'
     };
     return titles[type] || 'Challenge';
+}
+
+function getAvailableRewards() {
+    return [
+        {
+            id: 1,
+            name: "Custom Theme",
+            description: "Unlock a custom color theme for your dashboard",
+            cost: 1000,
+            icon: "bi-palette",
+            rarity: "common"
+        },
+        {
+            id: 2,
+            name: "Premium Badge",
+            description: "Show off your dedication with a special profile badge",
+            cost: 2000,
+            icon: "bi-award",
+            rarity: "rare"
+        },
+        {
+            id: 3,
+            name: "Bonus Multiplier",
+            description: "Get 2x XP for the next 24 hours",
+            cost: 3000,
+            icon: "bi-stars",
+            rarity: "rare"
+        },
+        {
+            id: 4,
+            name: "Exclusive Title",
+            description: "Unlock a special title for your profile",
+            cost: 5000,
+            icon: "bi-trophy",
+            rarity: "epic"
+        },
+        {
+            id: 5,
+            name: "Season Pass",
+            description: "Get exclusive access to seasonal rewards",
+            cost: 10000,
+            icon: "bi-ticket-perforated",
+            rarity: "legendary"
+        }
+    ];
 }
