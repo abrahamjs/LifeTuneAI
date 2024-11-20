@@ -27,31 +27,6 @@
                             <span id="multiplier">1.0</span>x Multiplier
                         </div>
                     </div>
-                    <!-- Social Stats -->
-                    <div class="social-stats mt-3">
-                        <div class="row">
-                            <div class="col-6">
-                                <div class="social-stat">
-                                    <span id="followersCount">0</span>
-                                    <small>Followers</small>
-                                </div>
-                            </div>
-                            <div class="col-6">
-                                <div class="social-stat">
-                                    <span id="followingCount">0</span>
-                                    <small>Following</small>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Social Settings -->
-                    <div class="social-settings mt-3">
-                        <button class="btn btn-sm btn-outline-primary" 
-                                data-bs-toggle="modal" 
-                                data-bs-target="#socialSettingsModal">
-                            <i class="bi bi-gear"></i> Social Settings
-                        </button>
-                    </div>
                 </div>
             </div>
         </div>
@@ -71,68 +46,83 @@
         </div>
     </div>
 
-    <!-- Leaderboard -->
+    <!-- Daily Challenges -->
     <div class="row">
         <div class="col-12">
             <div class="card mb-4">
-                <div class="card-header">
-                    <h5 class="mb-0">Global Leaderboard</h5>
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Daily Challenges</h5>
+                    <span class="badge bg-info" id="challengesTimeLeft">Resets in: 24h</span>
                 </div>
                 <div class="card-body">
-                    <div class="leaderboard-list" id="leaderboardList">
-                        <!-- Leaderboard will be loaded here -->
+                    <div class="challenges-container" id="challengesList">
+                        <!-- Challenges will be loaded here -->
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    [Previous sections: Daily Challenges, Rewards Shop...]
-
-</div>
-
-<!-- Social Settings Modal -->
-<div class="modal fade" id="socialSettingsModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Social Settings</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="socialSettingsForm">
-                    <div class="mb-3">
-                        <label class="form-label">Profile Visibility</label>
-                        <select class="form-select" id="profileVisibility">
-                            <option value="public">Public</option>
-                            <option value="private">Private</option>
-                            <option value="friends">Friends Only</option>
-                        </select>
+    <!-- Rewards Shop -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Rewards Shop</h5>
+                    <span class="badge bg-success" id="availablePoints">Points: 0</span>
+                </div>
+                <div class="card-body">
+                    <div class="rewards-grid" id="rewardsList">
+                        <!-- Rewards will be loaded here -->
                     </div>
-                    <div class="mb-3">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="sharedAchievements">
-                            <label class="form-check-label">Share Achievements</label>
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="sharedGoals">
-                            <label class="form-check-label">Share Goals</label>
-                        </div>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" onclick="saveSocialSettings()">Save Settings</button>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-[Previous modals...]
+<!-- Level Up Modal -->
+<div class="modal fade" id="levelUpModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <div class="level-up-animation mb-3">
+                    <i class="bi bi-trophy display-1"></i>
+                </div>
+                <h3>Level Up!</h3>
+                <p class="mb-0">Congratulations! You've reached level <span id="newLevel">2</span></p>
+                <div class="rewards-summary mt-3">
+                    <p>Rewards Unlocked:</p>
+                    <ul class="list-unstyled" id="levelRewards">
+                        <!-- Level rewards will be listed here -->
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-footer justify-content-center">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Continue</button>
+            </div>
+        </div>
+    </div>
+</div>
 
+<!-- Achievement Unlock Modal -->
+<div class="modal fade" id="achievementModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <div class="achievement-animation mb-3">
+                    <i class="bi bi-award display-1"></i>
+                </div>
+                <h3>Achievement Unlocked!</h3>
+                <p id="achievementName" class="mb-2"></p>
+                <p id="achievementDescription" class="text-muted"></p>
+                <div class="xp-reward mt-3">
+                    <span class="badge bg-success" id="achievementXP"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
