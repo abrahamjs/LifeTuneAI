@@ -150,32 +150,6 @@ canvas {
     }
 }
 
-/* Task Suggestion Styles */
-.task-suggestion-item {
-    transition: all 0.2s ease;
-    border: 1px solid rgba(var(--bs-secondary-rgb), 0.2);
-    margin-bottom: 0.5rem;
-}
-
-.task-suggestion-item:hover {
-    background-color: rgba(var(--bs-primary-rgb), 0.05);
-    border-color: rgba(var(--bs-primary-rgb), 0.2);
-}
-
-.task-suggestion-item .form-check {
-    padding: 1rem;
-    margin: 0;
-}
-
-.task-suggestion-item .edit-task {
-    opacity: 0.6;
-    transition: opacity 0.2s ease;
-}
-
-.task-suggestion-item:hover .edit-task {
-    opacity: 1;
-}
-
 /* Goals Grid */
 .goals-grid {
     display: grid;
@@ -224,49 +198,6 @@ canvas {
 .goal-tasks .list-group-item:hover {
     background: rgba(var(--bs-primary-rgb), 0.1);
     border-color: rgba(var(--bs-primary-rgb), 0.2);
-}
-
-/* Goal-Task Navigation Styles */
-.goal-link {
-    padding: 8px;
-    background: rgba(var(--bs-primary-rgb), 0.1);
-    border-radius: 6px;
-    margin-bottom: 1rem;
-}
-
-.goal-link .btn-link {
-    color: var(--bs-primary);
-    text-decoration: none;
-    font-weight: 500;
-}
-
-.goal-link .btn-link:hover {
-    color: var(--bs-primary);
-    text-decoration: underline;
-}
-
-.list-group-item-action {
-    border: 1px solid rgba(var(--bs-secondary-rgb), 0.2);
-    background: transparent;
-    transition: all 0.2s ease;
-}
-
-.list-group-item-action:hover {
-    background: rgba(var(--bs-primary-rgb), 0.1);
-    border-color: rgba(var(--bs-primary-rgb), 0.2);
-}
-
-.modal-content {
-    border: none;
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
-}
-
-.modal-header {
-    border-bottom: 1px solid rgba(var(--bs-secondary-rgb), 0.1);
-}
-
-.modal-footer {
-    border-top: 1px solid rgba(var(--bs-secondary-rgb), 0.1);
 }
 
 /* Profile Page Styles */
@@ -359,72 +290,6 @@ canvas {
     margin-top: 0.5rem;
 }
 
-/* Rewards Shop */
-.rewards-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 1rem;
-}
-
-.reward-card {
-    background: rgba(var(--bs-dark-rgb), 0.1);
-    border-radius: 8px;
-    padding: 1rem;
-    text-align: center;
-    transition: all 0.3s ease;
-    cursor: pointer;
-}
-
-.reward-card:hover:not(.locked) {
-    transform: translateY(-2px);
-    background: rgba(var(--bs-success-rgb), 0.1);
-}
-
-.reward-card.locked {
-    opacity: 0.7;
-    cursor: not-allowed;
-}
-
-.reward-cost {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    background: rgba(var(--bs-dark-rgb), 0.2);
-}
-
-/* Animations */
-@keyframes levelUp {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.2); }
-    100% { transform: scale(1); }
-}
-
-@keyframes achievementUnlock {
-    0% { transform: scale(0.5); opacity: 0; }
-    70% { transform: scale(1.1); }
-    100% { transform: scale(1); opacity: 1; }
-}
-
-@keyframes challengeComplete {
-    0% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
-    100% { transform: translateY(0); }
-}
-
-.level-up-animation i {
-    animation: levelUp 1s ease-out;
-}
-
-.achievement-animation i {
-    animation: achievementUnlock 0.8s ease-out;
-}
-
-.challenge-complete {
-    animation: challengeComplete 0.5s ease-out;
-}
-
 /* Toast Notifications */
 .toast-container {
     position: fixed;
@@ -463,3 +328,34 @@ canvas {
 .position-1 { background: gold; color: black; }
 .position-2 { background: silver; color: black; }
 .position-3 { background: #cd7f32; color: black; }
+
+/* Animations */
+@keyframes levelUp {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+
+@keyframes achievementUnlock {
+    0% { transform: scale(0.5); opacity: 0; }
+    70% { transform: scale(1.1); }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes challengeComplete {
+    0% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+    100% { transform: translateY(0); }
+}
+
+.level-up-animation i {
+    animation: levelUp 1s ease-out;
+}
+
+.achievement-animation i {
+    animation: achievementUnlock 0.8s ease-out;
+}
+
+.challenge-complete {
+    animation: challengeComplete 0.5s ease-out;
+}
