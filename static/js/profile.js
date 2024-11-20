@@ -1,25 +1,66 @@
 document.addEventListener('DOMContentLoaded', function() {
     loadProfile();
+    loadLeaderboard();
     initializeNotifications();
     startChallengeTimer();
+    loadSocialSettings();
     
     // Refresh data every minute
-    setInterval(loadProfile, 60000);
+    setInterval(() => {
+        loadProfile();
+        loadLeaderboard();
+    }, 60000);
 });
 
-function loadProfile() {
-    fetch('/api/gamification/profile')
-        .then(response => response.json())
-        .then(data => {
-            updateProfileInfo(data);
-            updateAchievements(data.achievements);
-            updateChallenges(data.daily_challenges);
-            updateRewardsShop(data);
-            checkForLevelUp(data);
-        });
+async function loadProfile() {
+    try {
+        // Show loading state
+        updateLoadingState(true);
+        
+        const response = await fetch('/api/gamification/profile');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        
+        updateProfileInfo(data);
+        updateAchievements(data.achievements);
+        updateChallenges(data.daily_challenges);
+        updateRewardsShop(data);
+        checkForLevelUp(data);
+    } catch (error) {
+        console.error('Error loading profile:', error);
+        showNotification('Failed to load profile data. Please try again later.', 'error');
+    } finally {
+        updateLoadingState(false);
+    }
+}
+
+function updateLoadingState(isLoading) {
+    const elements = ['currentLevel', 'xpProgress', 'streakCount', 'multiplier'];
+    elements.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.style.opacity = isLoading ? '0.5' : '1';
+        }
+    });
+    
+    // Add loading spinner if loading
+    const container = document.querySelector('.profile-card .card-body');
+    const existingSpinner = container.querySelector('.loading-spinner');
+    if (isLoading && !existingSpinner) {
+        const spinner = document.createElement('div');
+        spinner.className = 'loading-spinner spinner-border text-primary';
+        spinner.setAttribute('role', 'status');
+        container.prepend(spinner);
+    } else if (!isLoading && existingSpinner) {
+        existingSpinner.remove();
+    }
 }
 
 function updateProfileInfo(data) {
+    if (!data) return;
+    
     document.getElementById('currentLevel').textContent = data.level;
     document.getElementById('xpProgress').style.width = `${data.xp_progress}%`;
     document.getElementById('xpText').textContent = `XP: ${data.experience_points} / ${data.experience_points + data.xp_needed}`;
@@ -29,6 +70,8 @@ function updateProfileInfo(data) {
 }
 
 function updateAchievements(achievements) {
+    if (!achievements) return;
+    
     const container = document.getElementById('achievementsList');
     container.innerHTML = achievements.map(achievement => `
         <div class="achievement-card" data-achievement-id="${achievement.badge_type}">
@@ -45,6 +88,8 @@ function updateAchievements(achievements) {
 }
 
 function updateChallenges(challenges) {
+    if (!challenges) return;
+    
     const container = document.getElementById('challengesList');
     container.innerHTML = challenges.map(challenge => `
         <div class="challenge-card ${challenge.completed ? 'completed' : ''}"
@@ -67,6 +112,8 @@ function updateChallenges(challenges) {
 }
 
 function updateRewardsShop(data) {
+    if (!data) return;
+    
     const container = document.getElementById('rewardsList');
     const rewards = getAvailableRewards();
     container.innerHTML = rewards.map(reward => `
@@ -84,52 +131,32 @@ function updateRewardsShop(data) {
     `).join('');
 }
 
-function getAvailableRewards() {
-    return [
-        {
-            id: 1,
-            name: "Custom Theme",
-            description: "Unlock a custom color theme for your dashboard",
-            cost: 1000,
-            icon: "bi-palette"
-        },
-        {
-            id: 2,
-            name: "Premium Badge",
-            description: "Show off your dedication with a special profile badge",
-            cost: 2000,
-            icon: "bi-award"
-        },
-        {
-            id: 3,
-            name: "Bonus Multiplier",
-            description: "Get 2x XP for the next 24 hours",
-            cost: 3000,
-            icon: "bi-stars"
-        }
-    ];
-}
-
-function purchaseReward(rewardId) {
-    fetch('/api/gamification/purchase-reward', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ reward_id: rewardId })
-    })
-    .then(response => response.json())
-    .then(data => {
+async function purchaseReward(rewardId) {
+    try {
+        const response = await fetch('/api/gamification/purchase-reward', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ reward_id: rewardId })
+        });
+        
+        const data = await response.json();
         if (data.status === 'success') {
             showNotification('Reward Purchased!', 'success');
-            loadProfile();
+            await loadProfile();
         } else {
-            showNotification('Not enough points!', 'error');
+            showNotification(data.message || 'Not enough points!', 'error');
         }
-    });
+    } catch (error) {
+        console.error('Error purchasing reward:', error);
+        showNotification('Failed to purchase reward. Please try again.', 'error');
+    }
 }
 
 function checkForLevelUp(data) {
+    if (!data) return;
+    
     const oldLevel = parseInt(localStorage.getItem('currentLevel') || '0');
     if (data.level > oldLevel) {
         showLevelUpModal(data.level);
@@ -145,24 +172,6 @@ function showLevelUpModal(level) {
     ).join('');
     
     const modal = new bootstrap.Modal(document.getElementById('levelUpModal'));
-    modal.show();
-}
-
-function getLevelRewards(level) {
-    const rewards = [
-        { icon: 'bi-star-fill', description: 'New achievement slots unlocked' },
-        { icon: 'bi-graph-up', description: 'Increased XP gain' },
-        { icon: 'bi-gift', description: 'Special reward available in shop' }
-    ];
-    return rewards;
-}
-
-function showAchievementModal(achievement) {
-    document.getElementById('achievementName').textContent = achievement.name;
-    document.getElementById('achievementDescription').textContent = achievement.description;
-    document.getElementById('achievementXP').textContent = `+${achievement.points_awarded} XP`;
-    
-    const modal = new bootstrap.Modal(document.getElementById('achievementModal'));
     modal.show();
 }
 
@@ -226,4 +235,163 @@ function getChallengeTitle(type) {
         'goal_progress': 'Make Progress on Goals'
     };
     return titles[type] || 'Challenge';
+}
+
+function getAvailableRewards() {
+    return [
+        {
+            id: 1,
+            name: "Custom Theme",
+            description: "Unlock a custom color theme for your dashboard",
+            cost: 1000,
+            icon: "bi-palette"
+        },
+        {
+            id: 2,
+            name: "Premium Badge",
+            description: "Show off your dedication with a special profile badge",
+            cost: 2000,
+            icon: "bi-award"
+        },
+        {
+            id: 3,
+            name: "Bonus Multiplier",
+            description: "Get 2x XP for the next 24 hours",
+            cost: 3000,
+            icon: "bi-stars"
+        }
+    ];
+}
+
+async function loadLeaderboard() {
+    try {
+        const response = await fetch('/api/social/leaderboard');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const users = await response.json();
+        
+        const container = document.getElementById('leaderboardList');
+        container.innerHTML = users.map((user, index) => `
+            <div class="leaderboard-card p-3">
+                <div class="d-flex align-items-center">
+                    <div class="position-${index + 1} leaderboard-position me-3">
+                        ${index + 1}
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-0">${user.username}</h6>
+                                <small class="text-muted">Level ${user.level}</small>
+                            </div>
+                            <div class="text-end">
+                                <div class="mb-1">${user.experience_points} XP</div>
+                                <small>${user.achievements_count} achievements</small>
+                            </div>
+                        </div>
+                    </div>
+                    ${user.id !== getCurrentUserId() ? `
+                        <button class="btn btn-sm btn-${user.is_following ? 'secondary' : 'primary'} ms-3"
+                                onclick="toggleFollow(${user.id}, ${user.is_following})">
+                            ${user.is_following ? 'Unfollow' : 'Follow'}
+                        </button>
+                    ` : ''}
+                </div>
+            </div>
+        `).join('');
+    } catch (error) {
+        console.error('Error loading leaderboard:', error);
+        showNotification('Failed to load leaderboard data', 'error');
+    }
+}
+
+async function toggleFollow(userId, isFollowing) {
+    try {
+        const response = await fetch(`/api/social/${isFollowing ? 'unfollow' : 'follow'}/${userId}`, {
+            method: 'POST'
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        showNotification(data.message, 'success');
+        
+        // Reload leaderboard to update follow buttons
+        loadLeaderboard();
+        loadProfile();
+    } catch (error) {
+        console.error('Error toggling follow:', error);
+        showNotification('Failed to update follow status', 'error');
+    }
+}
+
+function loadSocialSettings() {
+    const visibility = document.getElementById('profileVisibility');
+    const achievements = document.getElementById('sharedAchievements');
+    const goals = document.getElementById('sharedGoals');
+    
+    fetch('/api/social/settings')
+        .then(response => response.json())
+        .then(data => {
+            visibility.value = data.profile_visibility;
+            achievements.checked = data.shared_achievements;
+            goals.checked = data.shared_goals;
+        })
+        .catch(error => {
+            console.error('Error loading social settings:', error);
+            showNotification('Failed to load social settings', 'error');
+        });
+}
+
+async function saveSocialSettings() {
+    try {
+        const visibility = document.getElementById('profileVisibility').value;
+        const achievements = document.getElementById('sharedAchievements').checked;
+        const goals = document.getElementById('sharedGoals').checked;
+        
+        const response = await fetch('/api/social/settings', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                profile_visibility: visibility,
+                shared_achievements: achievements,
+                shared_goals: goals
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const modal = bootstrap.Modal.getInstance(document.getElementById('socialSettingsModal'));
+        modal.hide();
+        showNotification('Social settings updated successfully', 'success');
+    } catch (error) {
+        console.error('Error saving social settings:', error);
+        showNotification('Failed to update social settings', 'error');
+    }
+}
+
+function getCurrentUserId() {
+    // Get the current user's ID from a data attribute in the profile page
+    return parseInt(document.querySelector('[data-user-id]')?.dataset.userId || '0');
+}
+
+function getLevelRewards(level) {
+    // This function should be implemented to fetch level rewards from the API
+    // or any other source. This is just a placeholder for now.
+    return [
+        {
+            icon: "bi-trophy",
+            description: "Unlocked a new Achievement"
+        },
+        {
+            icon: "bi-star",
+            description: "Increased XP multiplier"
+        }
+    ];
 }
