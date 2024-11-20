@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, f
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
-from models import User, Task, Goal, Habit, UserAnalytics, AIInsight, Achievement, DailyChallenge, HabitLog
+from models import User, Task, Goal, Habit, UserAnalytics, AIInsight, Achievement, DailyChallenge, HabitLog, UserConnection, SharedItem
 from database import db
 from config.settings import AUTH_REQUIRED
 from services.analytics import AnalyticsService
@@ -428,7 +428,6 @@ def reset_analytics_data():
     return jsonify({'status': 'success'})
 
 # Add these new routes after the existing routes
-
 @app.route('/profile')
 @login_required_if_enabled
 def profile():
@@ -480,6 +479,133 @@ def get_leaderboard():
         'experience_points': user.experience_points,
         'achievements_count': len(user.achievements)
     } for user in top_users])
+
+# Add these new routes after the existing routes
+@app.route('/api/social/follow/<int:user_id>', methods=['POST'])
+@login_required_if_enabled
+def follow_user(user_id):
+    if user_id == current_user.id:
+        return jsonify({'error': 'Cannot follow yourself'}), 400
+        
+    user_to_follow = User.query.get_or_404(user_id)
+    if not user_to_follow.privacy_settings.get('profile_visible', True):
+        return jsonify({'error': 'Profile not visible'}), 403
+        
+    connection = UserConnection.query.filter_by(
+        follower_id=current_user.id,
+        followed_id=user_id
+    ).first()
+    
+    if connection:
+        return jsonify({'error': 'Already following'}), 400
+        
+    connection = UserConnection(follower_id=current_user.id, followed_id=user_id)
+    db.session.add(connection)
+    db.session.commit()
+    
+    return jsonify({'status': 'success'})
+
+@app.route('/api/social/unfollow/<int:user_id>', methods=['POST'])
+@login_required_if_enabled
+def unfollow_user(user_id):
+    connection = UserConnection.query.filter_by(
+        follower_id=current_user.id,
+        followed_id=user_id
+    ).first()
+    
+    if not connection:
+        return jsonify({'error': 'Not following'}), 400
+        
+    db.session.delete(connection)
+    db.session.commit()
+    
+    return jsonify({'status': 'success'})
+
+@app.route('/api/social/share', methods=['POST'])
+@login_required_if_enabled
+def share_item():
+    data = request.get_json()
+    item_type = data.get('type')
+    item_id = data.get('id')
+    shared_with = data.get('shared_with')  # null for public, array of user_ids for specific users
+    
+    # Validate item exists
+    item = None
+    if item_type == 'goal':
+        item = Goal.query.get_or_404(item_id)
+    elif item_type == 'achievement':
+        item = Achievement.query.get_or_404(item_id)
+    elif item_type == 'habit':
+        item = Habit.query.get_or_404(item_id)
+    else:
+        return jsonify({'error': 'Invalid item type'}), 400
+        
+    # Check ownership
+    if getattr(item, 'user_id', None) != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+        
+    shared_item = SharedItem(
+        user_id=current_user.id,
+        item_type=item_type,
+        item_id=item_id,
+        shared_with=shared_with
+    )
+    
+    db.session.add(shared_item)
+    db.session.commit()
+    
+    return jsonify({'status': 'success'})
+
+@app.route('/api/social/feed')
+@login_required_if_enabled
+def get_social_feed():
+    # Get users being followed
+    following_ids = [c.followed_id for c in current_user.following]
+    
+    # Get shared items from followed users
+    shared_items = SharedItem.query.filter(
+        (SharedItem.user_id.in_(following_ids)) &
+        ((SharedItem.shared_with.is_(None)) |  # public items
+         (SharedItem.shared_with.contains([current_user.id])))  # items shared with current user
+    ).order_by(SharedItem.created_at.desc()).limit(20).all()
+    
+    feed_items = []
+    for item in shared_items:
+        if item.item_type == 'goal':
+            goal = Goal.query.get(item.item_id)
+            if goal:
+                feed_items.append({
+                    'type': 'goal',
+                    'user': item.user.username,
+                    'title': goal.title,
+                    'progress': goal.progress,
+                    'created_at': item.created_at.isoformat()
+                })
+        elif item.item_type == 'achievement':
+            achievement = Achievement.query.get(item.item_id)
+            if achievement:
+                feed_items.append({
+                    'type': 'achievement',
+                    'user': item.user.username,
+                    'name': achievement.name,
+                    'description': achievement.description,
+                    'created_at': item.created_at.isoformat()
+                })
+    
+    return jsonify(feed_items)
+
+@app.route('/api/social/privacy', methods=['PUT'])
+@login_required_if_enabled
+def update_privacy_settings():
+    data = request.get_json()
+    current_user.privacy_settings = {
+        'profile_visible': data.get('profile_visible', True),
+        'goals_visible': data.get('goals_visible', True),
+        'achievements_visible': data.get('achievements_visible', True),
+        'stats_visible': data.get('stats_visible', True)
+    }
+    db.session.commit()
+    return jsonify({'status': 'success'})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
