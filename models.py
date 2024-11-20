@@ -20,37 +20,6 @@ class User(UserMixin, db.Model):
     daily_streak = db.Column(db.Integer, default=0)
     last_login = db.Column(db.DateTime)
     current_multiplier = db.Column(db.Float, default=1.0)
-    # Social features
-    followers = db.relationship('UserConnection', 
-                              foreign_keys='UserConnection.followed_id',
-                              backref=db.backref('followed', lazy='joined'),
-                              lazy='dynamic')
-    following = db.relationship('UserConnection',
-                              foreign_keys='UserConnection.follower_id',
-                              backref=db.backref('follower', lazy='joined'),
-                              lazy='dynamic')
-    shared_items = db.relationship('SharedItem', backref='user', lazy=True)
-    privacy_settings = db.Column(JSONB, default={
-        'profile_visible': True,
-        'goals_visible': True,
-        'achievements_visible': True,
-        'stats_visible': True
-    })
-
-class UserConnection(db.Model):
-    __tablename__ = 'user_connections'
-    follower_id = db.Column(db.Integer, db.ForeignKey('user.id'), primary_key=True)
-    followed_id = db.Column(db.Integer, db.ForeignKey('user.id'), primary_key=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-class SharedItem(db.Model):
-    __tablename__ = 'shared_items'
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    item_type = db.Column(db.String(50))  # 'goal', 'achievement', 'habit'
-    item_id = db.Column(db.Integer)
-    shared_with = db.Column(JSONB)  # null for public, array of user_ids for specific users
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Achievement(db.Model):
     id = db.Column(db.Integer, primary_key=True)
