@@ -427,5 +427,59 @@ def reset_analytics_data():
     
     return jsonify({'status': 'success'})
 
+# Add these new routes after the existing routes
+
+@app.route('/profile')
+@login_required_if_enabled
+def profile():
+    return render_template('profile.html')
+
+@app.route('/api/gamification/purchase-reward', methods=['POST'])
+@login_required_if_enabled
+def purchase_reward():
+    user_id = current_user.id if AUTH_REQUIRED else 1
+    user = User.query.get_or_404(user_id)
+    
+    data = request.get_json()
+    reward_id = data.get('reward_id')
+    
+    # Get reward details
+    rewards = {
+        1: {'name': 'Custom Theme', 'cost': 1000},
+        2: {'name': 'Premium Badge', 'cost': 2000},
+        3: {'name': 'Bonus Multiplier', 'cost': 3000}
+    }
+    
+    reward = rewards.get(reward_id)
+    if not reward:
+        return jsonify({'status': 'error', 'message': 'Invalid reward'}), 400
+        
+    # Check if user has enough points
+    if user.experience_points < reward['cost']:
+        return jsonify({'status': 'error', 'message': 'Not enough points'}), 400
+        
+    # Process reward
+    user.experience_points -= reward['cost']
+    
+    # Apply reward effects
+    if reward_id == 3:  # Bonus Multiplier
+        user.current_multiplier = min(user.current_multiplier * 2, 4.0)  # Cap at 4x
+        
+    db.session.commit()
+    return jsonify({'status': 'success'})
+
+@app.route('/api/gamification/leaderboard')
+@login_required_if_enabled
+def get_leaderboard():
+    # Get top users by experience points
+    top_users = User.query.order_by(User.experience_points.desc()).limit(10).all()
+    
+    return jsonify([{
+        'username': user.username,
+        'level': user.level,
+        'experience_points': user.experience_points,
+        'achievements_count': len(user.achievements)
+    } for user in top_users])
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
