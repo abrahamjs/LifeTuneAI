@@ -80,6 +80,7 @@ function updateRewardsShop(data) {
             <span class="reward-cost">
                 <i class="bi bi-coin"></i> ${reward.cost}
             </span>
+            <span class="reward-rarity">${reward.rarity}</span>
         </div>
     `).join('');
 }
@@ -91,21 +92,40 @@ function getAvailableRewards() {
             name: "Custom Theme",
             description: "Unlock a custom color theme for your dashboard",
             cost: 1000,
-            icon: "bi-palette"
+            icon: "bi-palette",
+            rarity: "common"
         },
         {
             id: 2,
             name: "Premium Badge",
             description: "Show off your dedication with a special profile badge",
             cost: 2000,
-            icon: "bi-award"
+            icon: "bi-award",
+            rarity: "rare"
         },
         {
             id: 3,
             name: "Bonus Multiplier",
             description: "Get 2x XP for the next 24 hours",
             cost: 3000,
-            icon: "bi-stars"
+            icon: "bi-stars",
+            rarity: "rare"
+        },
+        {
+            id: 4,
+            name: "Exclusive Title",
+            description: "Unlock a special title for your profile",
+            cost: 5000,
+            icon: "bi-trophy",
+            rarity: "epic"
+        },
+        {
+            id: 5,
+            name: "Season Pass",
+            description: "Get exclusive access to seasonal rewards",
+            cost: 10000,
+            icon: "bi-ticket-perforated",
+            rarity: "legendary"
         }
     ];
 }
