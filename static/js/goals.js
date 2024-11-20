@@ -126,7 +126,8 @@ function showGoalDetails(goalId) {
                         <h6>Related Tasks</h6>
                         <div class="list-group">
                             ${goal.tasks.map(task => `
-                                <div class="list-group-item" onclick="showTaskDetails(${task.id})">
+                                <button class="list-group-item list-group-item-action" 
+                                        onclick="openTaskDetails(${task.id}, ${goal.id})">
                                     <div class="d-flex justify-content-between align-items-center">
                                         <div>
                                             <div class="fw-bold">${task.title}</div>
@@ -134,22 +135,29 @@ function showGoalDetails(goalId) {
                                         </div>
                                         <span class="badge bg-${getPriorityBadgeClass(task.priority)}">${task.priority}</span>
                                     </div>
-                                </div>
+                                </button>
                             `).join('')}
                         </div>
                     </div>
                 </div>
             `;
             
-            // Setup delete handler
+            // Setup handlers
             document.getElementById('deleteGoal').onclick = () => deleteGoal(goal.id);
-            // Setup edit handler
             document.getElementById('editGoal').onclick = () => editGoal(goal.id);
             
-            // Show the modal
             const modal = new bootstrap.Modal(document.getElementById('goalDetailsModal'));
             modal.show();
         });
+}
+
+function openTaskDetails(taskId, goalId) {
+    // Hide goal modal
+    const goalModal = bootstrap.Modal.getInstance(document.getElementById('goalDetailsModal'));
+    goalModal.hide();
+    
+    // Show task details
+    showTaskDetails(taskId);
 }
 
 function editGoal(goalId) {

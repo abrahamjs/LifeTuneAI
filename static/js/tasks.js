@@ -69,6 +69,14 @@ function showTaskDetails(taskId) {
             const detailsContent = document.getElementById('taskDetailsContent');
             detailsContent.innerHTML = `
                 <div class="task-details">
+                    ${task.goal_id ? `
+                        <div class="mb-3 goal-link">
+                            <h6>Related Goal</h6>
+                            <button class="btn btn-link p-0" onclick="showGoalDetails(${task.goal_id}); return false;">
+                                <i class="bi bi-arrow-up-right-circle"></i> View Related Goal
+                            </button>
+                        </div>
+                    ` : ''}
                     <div class="mb-3">
                         <h6>Title</h6>
                         <p>${task.title}</p>
