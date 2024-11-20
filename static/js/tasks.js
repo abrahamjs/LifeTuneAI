@@ -224,3 +224,74 @@ function getPriorityBadgeClass(priority) {
         default: return 'secondary';
     }
 }
+
+function showGoalDetails(goalId) {
+    // Hide task modal first
+    const taskModal = bootstrap.Modal.getInstance(document.getElementById('taskDetailsModal'));
+    if (taskModal) {
+        taskModal.hide();
+    }
+    
+    fetch(`/api/goals/${goalId}`)
+        .then(response => response.json())
+        .then(goal => {
+            const detailsContent = document.getElementById('goalDetailsContent');
+            detailsContent.innerHTML = `
+                <div class="goal-details">
+                    <div class="goal-header mb-4">
+                        <h4>${goal.title}</h4>
+                        <span class="badge bg-${getCategoryBadgeClass(goal.category)} mb-2">${goal.category}</span>
+                        <p class="text-muted">${goal.description}</p>
+                    </div>
+                    <div class="goal-dates mb-4">
+                        <div class="row">
+                            <div class="col-6">
+                                <small class="text-muted">Created</small>
+                                <div>${new Date(goal.created_at).toLocaleDateString()}</div>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted">Target Date</small>
+                                <div>${new Date(goal.target_date).toLocaleDateString()}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="goal-progress mb-4">
+                        <h6>Progress</h6>
+                        <div class="progress">
+                            <div class="progress-bar" role="progressbar" 
+                                 style="width: ${goal.progress}%" 
+                                 aria-valuenow="${goal.progress}" 
+                                 aria-valuemin="0" 
+                                 aria-valuemax="100">
+                                ${goal.progress}%
+                            </div>
+                        </div>
+                    </div>
+                    <div class="goal-tasks">
+                        <h6>Related Tasks</h6>
+                        <div class="list-group">
+                            ${goal.tasks.map(task => `
+                                <button class="list-group-item list-group-item-action" 
+                                        onclick="openTaskDetails(${task.id}, ${goal.id})">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <div class="fw-bold">${task.title}</div>
+                                            <small class="text-muted">${task.description || ''}</small>
+                                        </div>
+                                        <span class="badge bg-${getPriorityBadgeClass(task.priority)}">${task.priority}</span>
+                                    </div>
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Setup handlers
+            document.getElementById('deleteGoal').onclick = () => deleteGoal(goal.id);
+            document.getElementById('editGoal').onclick = () => editGoal(goal.id);
+            
+            const modal = new bootstrap.Modal(document.getElementById('goalDetailsModal'));
+            modal.show();
+        });
+}

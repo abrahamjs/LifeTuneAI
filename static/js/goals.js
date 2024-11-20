@@ -152,12 +152,61 @@ function showGoalDetails(goalId) {
 }
 
 function openTaskDetails(taskId, goalId) {
-    // Hide goal modal
+    // Hide goal modal first
     const goalModal = bootstrap.Modal.getInstance(document.getElementById('goalDetailsModal'));
-    goalModal.hide();
+    if (goalModal) {
+        goalModal.hide();
+    }
     
-    // Show task details
-    showTaskDetails(taskId);
+    // Show task details after a short delay to allow modal transition
+    setTimeout(() => {
+        fetch(`/api/tasks/${taskId}`)
+            .then(response => response.json())
+            .then(task => {
+                const detailsContent = document.getElementById('taskDetailsContent');
+                detailsContent.innerHTML = `
+                    <div class="task-details">
+                        ${goalId ? `
+                            <div class="mb-3 goal-link">
+                                <h6>Related Goal</h6>
+                                <button class="btn btn-link p-0" onclick="showGoalDetails(${goalId}); return false;">
+                                    <i class="bi bi-arrow-up-right-circle"></i> View Related Goal
+                                </button>
+                            </div>
+                        ` : ''}
+                        <div class="mb-3">
+                            <h6>Title</h6>
+                            <p>${task.title}</p>
+                        </div>
+                        <div class="mb-3">
+                            <h6>Description</h6>
+                            <p>${task.description || 'No description'}</p>
+                        </div>
+                        <div class="mb-3">
+                            <h6>Priority</h6>
+                            <span class="badge bg-${getPriorityBadgeClass(task.priority)}">${task.priority}</span>
+                        </div>
+                        <div class="mb-3">
+                            <h6>Due Date</h6>
+                            <p>${task.due_date ? new Date(task.due_date).toLocaleDateString() : 'No due date'}</p>
+                        </div>
+                        <div class="mb-3">
+                            <h6>Status</h6>
+                            <span class="badge bg-${task.completed ? 'success' : 'warning'}">
+                                ${task.completed ? 'Completed' : 'Pending'}
+                            </span>
+                        </div>
+                    </div>
+                `;
+                
+                // Setup handlers
+                document.getElementById('deleteTask').onclick = () => deleteTask(task.id);
+                document.getElementById('editTask').onclick = () => editTask(task.id);
+                
+                const modal = new bootstrap.Modal(document.getElementById('taskDetailsModal'));
+                modal.show();
+            });
+    }, 150);  // Small delay for smooth transition
 }
 
 function editGoal(goalId) {
@@ -320,4 +369,107 @@ async function suggestTasks(title, description) {
             </div>
         `;
     }
+}
+
+function deleteTask(taskId) {
+    if (confirm('Are you sure you want to delete this task?')) {
+        fetch(`/api/tasks/${taskId}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const modal = bootstrap.Modal.getInstance(document.getElementById('taskDetailsModal'));
+                modal.hide();
+                // Reload the relevant goal details to update the task list
+                const goalId = data.goalId; // Assuming API response provides goalId
+                if (goalId) {
+                    showGoalDetails(goalId);
+                }
+            }
+        });
+    }
+}
+
+function editTask(taskId) {
+    const detailsContent = document.getElementById('taskDetailsContent');
+    const currentContent = detailsContent.innerHTML;
+    
+    fetch(`/api/tasks/${taskId}`)
+        .then(response => response.json())
+        .then(task => {
+            detailsContent.innerHTML = `
+                <form id="editTaskForm">
+                    <div class="mb-3">
+                        <label class="form-label">Title</label>
+                        <input type="text" class="form-control" id="editTaskTitle" value="${task.title}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" id="editTaskDescription" rows="3">${task.description}</textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Priority</label>
+                        <select class="form-control" id="editTaskPriority">
+                            <option value="urgent" ${task.priority === 'urgent' ? 'selected' : ''}>Urgent</option>
+                            <option value="important" ${task.priority === 'important' ? 'selected' : ''}>Important</option>
+                            <option value="low" ${task.priority === 'low' ? 'selected' : ''}>Low</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Due Date</label>
+                        <input type="date" class="form-control" id="editTaskDueDate" 
+                               value="${task.due_date ? task.due_date.split('T')[0] : ''}">
+                    </div>
+                </form>
+            `;
+            
+            // Change footer buttons
+            const footer = document.querySelector('#taskDetailsModal .modal-footer');
+            footer.innerHTML = `
+                <button type="button" class="btn btn-secondary" onclick="cancelEditTask(${taskId}, '${encodeURIComponent(currentContent)}')">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveTaskEdit(${taskId})">Save Changes</button>
+            `;
+        });
+}
+
+function cancelEditTask(taskId, previousContent) {
+    document.getElementById('taskDetailsContent').innerHTML = decodeURIComponent(previousContent);
+    resetTaskModalFooter(taskId);
+}
+
+function resetTaskModalFooter(taskId) {
+    const footer = document.querySelector('#taskDetailsModal .modal-footer');
+    footer.innerHTML = `
+        <button type="button" class="btn btn-danger" id="deleteTask" onclick="deleteTask(${taskId})">Delete</button>
+        <button type="button" class="btn btn-primary" onclick="editTask(${taskId})">Edit</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+    `;
+}
+
+function saveTaskEdit(taskId) {
+    const data = {
+        title: document.getElementById('editTaskTitle').value,
+        description: document.getElementById('editTaskDescription').value,
+        priority: document.getElementById('editTaskPriority').value,
+        due_date: document.getElementById('editTaskDueDate').value
+    };
+    
+    fetch(`/api/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showTaskDetails(taskId); // Refresh the task details view
+            // Assuming you want to refresh the goal details after editing a task
+            if (data.goalId) {
+                showGoalDetails(data.goalId); // Refresh the goal details
+            }
+        }
+    });
 }
