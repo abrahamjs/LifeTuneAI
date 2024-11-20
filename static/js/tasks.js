@@ -230,68 +230,189 @@ function showGoalDetails(goalId) {
     const taskModal = bootstrap.Modal.getInstance(document.getElementById('taskDetailsModal'));
     if (taskModal) {
         taskModal.hide();
+        
+        // Wait for modal to finish hiding
+        setTimeout(() => {
+            fetch(`/api/goals/${goalId}`)
+                .then(response => response.json())
+                .then(goal => {
+                    const detailsContent = document.getElementById('goalDetailsContent');
+                    detailsContent.innerHTML = `
+                        <div class="goal-details">
+                            <div class="goal-header mb-4">
+                                <h4>${goal.title}</h4>
+                                <span class="badge bg-${getCategoryBadgeClass(goal.category)} mb-2">${goal.category}</span>
+                                <p class="text-muted">${goal.description}</p>
+                            </div>
+                            <div class="goal-dates mb-4">
+                                <div class="row">
+                                    <div class="col-6">
+                                        <small class="text-muted">Created</small>
+                                        <div>${new Date(goal.created_at).toLocaleDateString()}</div>
+                                    </div>
+                                    <div class="col-6">
+                                        <small class="text-muted">Target Date</small>
+                                        <div>${new Date(goal.target_date).toLocaleDateString()}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="goal-progress mb-4">
+                                <h6>Progress</h6>
+                                <div class="progress">
+                                    <div class="progress-bar" role="progressbar" 
+                                         style="width: ${goal.progress}%" 
+                                         aria-valuenow="${goal.progress}" 
+                                         aria-valuemin="0" 
+                                         aria-valuemax="100">
+                                        ${goal.progress}%
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="goal-tasks">
+                                <h6>Related Tasks</h6>
+                                <div class="list-group">
+                                    ${goal.tasks.map(task => `
+                                        <button class="list-group-item list-group-item-action" 
+                                                onclick="openTaskDetails(${task.id}, ${goal.id})">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <div class="fw-bold">${task.title}</div>
+                                                    <small class="text-muted">${task.description || ''}</small>
+                                                </div>
+                                                <span class="badge bg-${getPriorityBadgeClass(task.priority)}">${task.priority}</span>
+                                            </div>
+                                        </button>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Setup handlers
+                    document.getElementById('deleteGoal').onclick = () => deleteGoal(goal.id);
+                    document.getElementById('editGoal').onclick = () => editGoal(goal.id);
+                    
+                    const goalModal = new bootstrap.Modal(document.getElementById('goalDetailsModal'));
+                    goalModal.show();
+                });
+        }, 300); // Wait for modal transition
     }
-    
+}
+
+function getCategoryBadgeClass(category) {
+    switch(category.toLowerCase()) {
+        case 'work': return 'primary';
+        case 'personal': return 'secondary';
+        case 'health': return 'success';
+        case 'finance': return 'warning';
+        default: return 'info';
+    }
+}
+
+function openTaskDetails(taskId, goalId) {
+    // Hide the goal details modal first
+    const goalModal = bootstrap.Modal.getInstance(document.getElementById('goalDetailsModal'));
+    if (goalModal) {
+        goalModal.hide();
+        
+        // Wait for the modal to finish hiding
+        setTimeout(() => {
+            showTaskDetails(taskId); // Display the task details
+        }, 300); // Wait for modal transition
+    }
+}
+
+function editGoal(goalId) {
     fetch(`/api/goals/${goalId}`)
         .then(response => response.json())
         .then(goal => {
             const detailsContent = document.getElementById('goalDetailsContent');
+            const currentContent = detailsContent.innerHTML;
+            
             detailsContent.innerHTML = `
-                <div class="goal-details">
-                    <div class="goal-header mb-4">
-                        <h4>${goal.title}</h4>
-                        <span class="badge bg-${getCategoryBadgeClass(goal.category)} mb-2">${goal.category}</span>
-                        <p class="text-muted">${goal.description}</p>
+                <form id="editGoalForm">
+                    <div class="mb-3">
+                        <label class="form-label">Title</label>
+                        <input type="text" class="form-control" id="editGoalTitle" value="${goal.title}">
                     </div>
-                    <div class="goal-dates mb-4">
-                        <div class="row">
-                            <div class="col-6">
-                                <small class="text-muted">Created</small>
-                                <div>${new Date(goal.created_at).toLocaleDateString()}</div>
-                            </div>
-                            <div class="col-6">
-                                <small class="text-muted">Target Date</small>
-                                <div>${new Date(goal.target_date).toLocaleDateString()}</div>
-                            </div>
-                        </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" id="editGoalDescription" rows="3">${goal.description || ''}</textarea>
                     </div>
-                    <div class="goal-progress mb-4">
-                        <h6>Progress</h6>
-                        <div class="progress">
-                            <div class="progress-bar" role="progressbar" 
-                                 style="width: ${goal.progress}%" 
-                                 aria-valuenow="${goal.progress}" 
-                                 aria-valuemin="0" 
-                                 aria-valuemax="100">
-                                ${goal.progress}%
-                            </div>
-                        </div>
+                    <div class="mb-3">
+                        <label class="form-label">Category</label>
+                        <select class="form-control" id="editGoalCategory">
+                            <option value="work" ${goal.category === 'work' ? 'selected' : ''}>Work</option>
+                            <option value="personal" ${goal.category === 'personal' ? 'selected' : ''}>Personal</option>
+                            <option value="health" ${goal.category === 'health' ? 'selected' : ''}>Health</option>
+                            <option value="finance" ${goal.category === 'finance' ? 'selected' : ''}>Finance</option>
+                        </select>
                     </div>
-                    <div class="goal-tasks">
-                        <h6>Related Tasks</h6>
-                        <div class="list-group">
-                            ${goal.tasks.map(task => `
-                                <button class="list-group-item list-group-item-action" 
-                                        onclick="openTaskDetails(${task.id}, ${goal.id})">
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <div>
-                                            <div class="fw-bold">${task.title}</div>
-                                            <small class="text-muted">${task.description || ''}</small>
-                                        </div>
-                                        <span class="badge bg-${getPriorityBadgeClass(task.priority)}">${task.priority}</span>
-                                    </div>
-                                </button>
-                            `).join('')}
-                        </div>
+                    <div class="mb-3">
+                        <label class="form-label">Target Date</label>
+                        <input type="date" class="form-control" id="editGoalTargetDate" 
+                               value="${goal.target_date ? goal.target_date.split('T')[0] : ''}">
                     </div>
-                </div>
+                </form>
             `;
             
-            // Setup handlers
-            document.getElementById('deleteGoal').onclick = () => deleteGoal(goal.id);
-            document.getElementById('editGoal').onclick = () => editGoal(goal.id);
-            
-            const modal = new bootstrap.Modal(document.getElementById('goalDetailsModal'));
-            modal.show();
+            // Change footer buttons
+            const footer = document.querySelector('#goalDetailsModal .modal-footer');
+            footer.innerHTML = `
+                <button type="button" class="btn btn-secondary" onclick="cancelGoalEdit(${goalId}, '${encodeURIComponent(currentContent)}')">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveGoalEdit(${goalId})">Save Changes</button>
+            `;
         });
+}
+
+function cancelGoalEdit(goalId, previousContent) {
+    document.getElementById('goalDetailsContent').innerHTML = decodeURIComponent(previousContent);
+    resetGoalModalFooter(goalId);
+}
+
+function resetGoalModalFooter(goalId) {
+    const footer = document.querySelector('#goalDetailsModal .modal-footer');
+    footer.innerHTML = `
+        <button type="button" class="btn btn-danger" id="deleteGoal" onclick="deleteGoal(${goalId})">Delete</button>
+        <button type="button" class="btn btn-primary" onclick="editGoal(${goalId})">Edit</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+    `;
+}
+
+function saveGoalEdit(goalId) {
+    const data = {
+        title: document.getElementById('editGoalTitle').value,
+        description: document.getElementById('editGoalDescription').value,
+        category: document.getElementById('editGoalCategory').value,
+        target_date: document.getElementById('editGoalTargetDate').value
+    };
+    
+    fetch(`/api/goals/${goalId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showGoalDetails(goalId);
+        }
+    });
+}
+
+function deleteGoal(goalId) {
+    if (confirm('Are you sure you want to delete this goal?')) {
+        fetch(`/api/goals/${goalId}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const modal = bootstrap.Modal.getInstance(document.getElementById('goalDetailsModal'));
+                modal.hide();
+            }
+        });
+    }
 }

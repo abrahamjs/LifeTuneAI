@@ -152,61 +152,73 @@ function showGoalDetails(goalId) {
 }
 
 function openTaskDetails(taskId, goalId) {
-    // Hide goal modal first
+    // Hide goal modal
     const goalModal = bootstrap.Modal.getInstance(document.getElementById('goalDetailsModal'));
     if (goalModal) {
         goalModal.hide();
-    }
-    
-    // Show task details after a short delay to allow modal transition
-    setTimeout(() => {
-        fetch(`/api/tasks/${taskId}`)
-            .then(response => response.json())
-            .then(task => {
-                const detailsContent = document.getElementById('taskDetailsContent');
-                detailsContent.innerHTML = `
-                    <div class="task-details">
-                        ${goalId ? `
+        
+        // Wait for modal to finish hiding
+        setTimeout(() => {
+            fetch(`/api/tasks/${taskId}`)
+                .then(response => response.json())
+                .then(task => {
+                    const detailsContent = document.getElementById('taskDetailsContent');
+                    detailsContent.innerHTML = `
+                        <div class="task-details">
                             <div class="mb-3 goal-link">
                                 <h6>Related Goal</h6>
-                                <button class="btn btn-link p-0" onclick="showGoalDetails(${goalId}); return false;">
+                                <button class="btn btn-link p-0" onclick="navigateToGoal(${goalId}); return false;">
                                     <i class="bi bi-arrow-up-right-circle"></i> View Related Goal
                                 </button>
                             </div>
-                        ` : ''}
-                        <div class="mb-3">
-                            <h6>Title</h6>
-                            <p>${task.title}</p>
+                            <div class="mb-3">
+                                <h6>Title</h6>
+                                <p>${task.title}</p>
+                            </div>
+                            <div class="mb-3">
+                                <h6>Description</h6>
+                                <p>${task.description || 'No description'}</p>
+                            </div>
+                            <div class="mb-3">
+                                <h6>Priority</h6>
+                                <span class="badge bg-${getPriorityBadgeClass(task.priority)}">${task.priority}</span>
+                            </div>
+                            <div class="mb-3">
+                                <h6>Due Date</h6>
+                                <p>${task.due_date ? new Date(task.due_date).toLocaleDateString() : 'No due date'}</p>
+                            </div>
+                            <div class="mb-3">
+                                <h6>Status</h6>
+                                <span class="badge bg-${task.completed ? 'success' : 'warning'}">
+                                    ${task.completed ? 'Completed' : 'Pending'}
+                                </span>
+                            </div>
                         </div>
-                        <div class="mb-3">
-                            <h6>Description</h6>
-                            <p>${task.description || 'No description'}</p>
-                        </div>
-                        <div class="mb-3">
-                            <h6>Priority</h6>
-                            <span class="badge bg-${getPriorityBadgeClass(task.priority)}">${task.priority}</span>
-                        </div>
-                        <div class="mb-3">
-                            <h6>Due Date</h6>
-                            <p>${task.due_date ? new Date(task.due_date).toLocaleDateString() : 'No due date'}</p>
-                        </div>
-                        <div class="mb-3">
-                            <h6>Status</h6>
-                            <span class="badge bg-${task.completed ? 'success' : 'warning'}">
-                                ${task.completed ? 'Completed' : 'Pending'}
-                            </span>
-                        </div>
-                    </div>
-                `;
-                
-                // Setup handlers
-                document.getElementById('deleteTask').onclick = () => deleteTask(task.id);
-                document.getElementById('editTask').onclick = () => editTask(task.id);
-                
-                const modal = new bootstrap.Modal(document.getElementById('taskDetailsModal'));
-                modal.show();
-            });
-    }, 150);  // Small delay for smooth transition
+                    `;
+                    
+                    // Setup handlers
+                    document.getElementById('deleteTask').onclick = () => deleteTask(task.id);
+                    document.getElementById('editTask').onclick = () => editTask(task.id);
+                    
+                    const taskModal = new bootstrap.Modal(document.getElementById('taskDetailsModal'));
+                    taskModal.show();
+                });
+        }, 300); // Wait for modal transition
+    }
+}
+
+// Add new function for goal navigation
+function navigateToGoal(goalId) {
+    // Hide task modal
+    const taskModal = bootstrap.Modal.getInstance(document.getElementById('taskDetailsModal'));
+    if (taskModal) {
+        taskModal.hide();
+        
+        // Wait for modal to finish hiding
+        setTimeout(() => {
+            showGoalDetails(goalId);
+        }, 300); // Wait for modal transition
+    }
 }
 
 function editGoal(goalId) {
