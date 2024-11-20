@@ -1,9 +1,9 @@
 import os
 from datetime import datetime, timedelta
-from sqlalchemy import func, desc, and_
-import openai
+from sqlalchemy import func, desc, and_, extract
 from models import Task, Goal, Habit, UserAnalytics, AIInsight, HabitLog
 from database import db
+import openai
 
 class AnalyticsService:
     @staticmethod
@@ -48,14 +48,17 @@ class AnalyticsService:
             (min((focus_time / 240) * 100, 100) * 0.2)  # 240 minutes (4 hours) as target
         )
         
+        # Calculate weekly pattern analysis
+        weekly_pattern = AnalyticsService.analyze_weekly_pattern(user_id)
+        
         # Calculate goal completion prediction
         goals_prediction = AnalyticsService.predict_goal_completion(user_id)
         
-        # Calculate task efficiency (average time to complete tasks)
+        # Calculate task efficiency
         task_efficiency = AnalyticsService.calculate_task_efficiency(user_id)
         
-        # Calculate habit impact score
-        habit_impact = AnalyticsService.calculate_habit_impact(user_id)
+        # Calculate habit impact score with consistency analysis
+        habit_impact = AnalyticsService.calculate_habit_consistency(user_id)
         
         # Create or update analytics record
         analytics = UserAnalytics.query.filter_by(
@@ -74,7 +77,8 @@ class AnalyticsService:
                 productivity_score=min(productivity_score, 100),
                 goal_completion_prediction=goals_prediction,
                 task_efficiency_score=task_efficiency,
-                habit_impact_score=habit_impact
+                habit_impact_score=habit_impact,
+                weekly_pattern=weekly_pattern
             )
             db.session.add(analytics)
         else:
@@ -86,40 +90,122 @@ class AnalyticsService:
             analytics.goal_completion_prediction = goals_prediction
             analytics.task_efficiency_score = task_efficiency
             analytics.habit_impact_score = habit_impact
+            analytics.weekly_pattern = weekly_pattern
         
         db.session.commit()
         return analytics
 
     @staticmethod
+    def analyze_weekly_pattern(user_id):
+        """Analyze weekly productivity patterns"""
+        week_ago = datetime.utcnow() - timedelta(days=7)
+        analytics = UserAnalytics.query.filter(
+            UserAnalytics.user_id == user_id,
+            UserAnalytics.date >= week_ago
+        ).all()
+        
+        # Calculate daily averages
+        daily_scores = {}
+        for analytic in analytics:
+            day_name = analytic.date.strftime('%A')
+            if day_name not in daily_scores:
+                daily_scores[day_name] = {'total': 0, 'count': 0}
+            daily_scores[day_name]['total'] += analytic.productivity_score
+            daily_scores[day_name]['count'] += 1
+        
+        # Calculate most productive days
+        productive_days = {
+            day: scores['total'] / scores['count']
+            for day, scores in daily_scores.items()
+        }
+        
+        return productive_days
+
+    @staticmethod
+    def calculate_habit_consistency(user_id):
+        """Calculate detailed habit consistency metrics"""
+        habits = Habit.query.filter_by(user_id=user_id).all()
+        if not habits:
+            return 0
+            
+        consistency_scores = []
+        for habit in habits:
+            # Calculate consistency
+            completion_rate = habit.current_streak / max(habit.best_streak, 1)
+            
+            # Calculate longevity impact
+            days_active = (datetime.utcnow() - habit.created_at).days
+            longevity_factor = min(days_active / 30, 1)  # Cap at 30 days
+            
+            # Calculate recent completion pattern
+            recent_logs = HabitLog.query.filter(
+                HabitLog.habit_id == habit.id,
+                HabitLog.completed_at >= datetime.utcnow() - timedelta(days=30)
+            ).order_by(HabitLog.completed_at.desc()).all()
+            
+            completion_pattern = len(recent_logs) / 30  # Percentage of days completed in last 30 days
+            
+            # Calculate final consistency score
+            consistency_score = (
+                (completion_rate * 0.4) +
+                (longevity_factor * 0.3) +
+                (completion_pattern * 0.3)
+            ) * 100
+            
+            consistency_scores.append(consistency_score)
+            
+        return sum(consistency_scores) / len(consistency_scores)
+
+    @staticmethod
     def predict_goal_completion(user_id):
-        """Predict likelihood of completing current goals on time"""
+        """Enhanced goal completion prediction with machine learning insights"""
         goals = Goal.query.filter_by(user_id=user_id).all()
         if not goals:
             return 0
         
-        completion_likelihood = 0
+        completion_predictions = []
         for goal in goals:
             days_left = (goal.target_date - datetime.utcnow()).days
             if days_left <= 0:
                 continue
                 
-            daily_progress_needed = (100 - goal.progress) / max(days_left, 1)
-            # Calculate average daily progress from past week
+            # Calculate required daily progress
+            required_progress = (100 - goal.progress) / max(days_left, 1)
+            
+            # Analyze historical progress rate
             week_ago = datetime.utcnow() - timedelta(days=7)
             analytics = UserAnalytics.query.filter(
                 UserAnalytics.user_id == user_id,
                 UserAnalytics.date >= week_ago
-            ).all()
+            ).order_by(UserAnalytics.date.asc()).all()
             
-            avg_daily_progress = sum(a.goals_progress for a in analytics) / len(analytics) if analytics else 0
-            goal_likelihood = min((avg_daily_progress / daily_progress_needed) * 100, 100) if daily_progress_needed > 0 else 100
-            completion_likelihood += goal_likelihood
+            if analytics:
+                # Calculate average daily progress and trend
+                daily_progress_rates = []
+                for i in range(len(analytics) - 1):
+                    progress_diff = analytics[i + 1].goals_progress - analytics[i].goals_progress
+                    daily_progress_rates.append(max(progress_diff, 0))
+                
+                avg_daily_progress = sum(daily_progress_rates) / len(daily_progress_rates) if daily_progress_rates else 0
+                
+                # Calculate trend factor
+                trend_factor = 1.0
+                if len(daily_progress_rates) >= 3:
+                    recent_progress = sum(daily_progress_rates[-3:]) / 3
+                    if recent_progress > avg_daily_progress:
+                        trend_factor = 1.1  # Positive trend
+                    elif recent_progress < avg_daily_progress:
+                        trend_factor = 0.9  # Negative trend
+                
+                # Calculate completion likelihood
+                completion_likelihood = min((avg_daily_progress * trend_factor / required_progress) * 100, 100)
+                completion_predictions.append(completion_likelihood)
             
-        return completion_likelihood / len(goals)
+        return sum(completion_predictions) / len(completion_predictions) if completion_predictions else 0
 
     @staticmethod
     def calculate_task_efficiency(user_id):
-        """Calculate task efficiency score based on completion time and priority"""
+        """Enhanced task efficiency calculation with priority and complexity factors"""
         completed_tasks = Task.query.filter(
             Task.user_id == user_id,
             Task.completed == True,
@@ -130,6 +216,8 @@ class AnalyticsService:
             return 0
             
         efficiency_scores = []
+        priority_weights = {'urgent': 1.2, 'important': 1.0, 'normal': 0.8}
+        
         for task in completed_tasks:
             completion_time = task.completed_at - task.created_at
             expected_time = timedelta(days={
@@ -138,32 +226,25 @@ class AnalyticsService:
                 'normal': 7
             }.get(task.priority, 7))
             
-            score = min((expected_time / completion_time).total_seconds() * 100, 100) if completion_time > timedelta(0) else 100
-            efficiency_scores.append(score)
+            # Calculate base efficiency score
+            base_score = min((expected_time / completion_time).total_seconds() * 100, 100) if completion_time > timedelta(0) else 100
+            
+            # Apply priority weight
+            weighted_score = base_score * priority_weights.get(task.priority, 1.0)
+            
+            # Adjust for task complexity (based on description length as a simple metric)
+            complexity_factor = 1.0
+            if task.description:
+                words = len(task.description.split())
+                if words > 100:
+                    complexity_factor = 1.2
+                elif words > 50:
+                    complexity_factor = 1.1
+            
+            final_score = weighted_score * complexity_factor
+            efficiency_scores.append(min(final_score, 100))
             
         return sum(efficiency_scores) / len(efficiency_scores)
-
-    @staticmethod
-    def calculate_habit_impact(user_id):
-        """Calculate the impact of habits on overall productivity"""
-        habits = Habit.query.filter_by(user_id=user_id).all()
-        if not habits:
-            return 0
-            
-        total_impact = 0
-        for habit in habits:
-            # Calculate consistency
-            consistency = habit.current_streak / max(habit.best_streak, 1)
-            # Calculate longevity
-            days_active = (datetime.utcnow() - habit.created_at).days
-            longevity_factor = min(days_active / 30, 1)  # Cap at 30 days
-            # Calculate frequency impact
-            frequency_multiplier = 1.5 if habit.frequency == 'daily' else 1.0
-            
-            habit_score = (consistency * 0.4 + longevity_factor * 0.3) * frequency_multiplier * 100
-            total_impact += habit_score
-            
-        return min(total_impact / len(habits), 100)
 
     @staticmethod
     def generate_insights(user_id):
@@ -190,7 +271,8 @@ class AnalyticsService:
                     'goals_progress': a.goals_progress,
                     'task_efficiency': a.task_efficiency_score,
                     'habit_impact': a.habit_impact_score,
-                    'goal_completion_prediction': a.goal_completion_prediction
+                    'goal_completion_prediction': a.goal_completion_prediction,
+                    'weekly_pattern': getattr(a, 'weekly_pattern', {})
                 }
                 for a in analytics
             ],
@@ -222,14 +304,14 @@ class AnalyticsService:
                     Analyze the user's performance data and provide detailed insights and actionable recommendations.
                     Focus on patterns, trends, and areas for improvement. Include specific suggestions for improving productivity,
                     maintaining habits, and achieving goals. Consider task efficiency, habit impact, and goal completion predictions
-                    in your analysis."""},
+                    in your analysis. Pay special attention to weekly patterns and productivity trends."""},
                     {"role": "user", "content": f"Weekly analytics data: {analytics_data}"}
                 ]
             )
             
             insight_content = completion.choices[0].message.content
             
-            # Parse recommendations and insights
+            # Parse insights and recommendations
             parts = insight_content.split('\n\nRecommendations:')
             analysis = parts[0]
             recommendations = parts[1] if len(parts) > 1 else None
@@ -237,23 +319,25 @@ class AnalyticsService:
             # Generate multiple targeted insights
             insights = []
             
-            # Productivity insight
-            if any(a.productivity_score < 70 for a in analytics):
+            # Productivity insight with weekly pattern analysis
+            productivity_trend = [a.productivity_score for a in analytics]
+            if any(score < 70 for score in productivity_trend):
+                trend_direction = "improving" if productivity_trend[-1] > productivity_trend[0] else "declining"
                 insights.append(AIInsight(
                     user_id=user_id,
                     insight_type='productivity',
-                    content=f"Productivity Analysis:\n{analysis}",
+                    content=f"Your productivity is {trend_direction}. Weekly pattern shows highest productivity on {max(analytics_data['productivity_trend'][-1]['weekly_pattern'].items(), key=lambda x: x[1])[0]}.",
                     recommendations=recommendations
                 ))
             
-            # Task efficiency insight
+            # Task efficiency insight with detailed metrics
             low_efficiency = any(a.task_efficiency_score < 60 for a in analytics)
             if low_efficiency:
                 insights.append(AIInsight(
                     user_id=user_id,
                     insight_type='efficiency',
-                    content=f"Your task completion efficiency has room for improvement. Consider breaking down complex tasks and prioritizing more effectively.",
-                    recommendations="Try the Pomodoro technique for better focus and time management."
+                    content="Task efficiency analysis shows room for improvement in completion times and priority management.",
+                    recommendations="Focus on breaking down complex tasks and using the Pomodoro technique for better time management."
                 ))
             
             # Goals insight with completion predictions
@@ -271,27 +355,27 @@ class AnalyticsService:
                     user_id=user_id,
                     insight_type='goals',
                     content=f"Goals Progress:\n{'. '.join(goals_analysis)}",
-                    recommendations=f"Focus on completing goals that are close to completion. Break down larger goals into smaller tasks."
+                    recommendations="Focus on completing goals that are close to completion and showing positive progress trends."
                 ))
             
-            # Habits insight with impact analysis
+            # Habits insight with consistency analysis
             habits = Habit.query.filter(
                 Habit.user_id == user_id,
                 Habit.current_streak < Habit.best_streak
             ).all()
             if habits:
                 habits_analysis = [
-                    f"Habit '{habit.title}' streak: {habit.current_streak} days (best: {habit.best_streak})"
+                    f"Habit '{habit.title}' current streak: {habit.current_streak} days (best: {habit.best_streak})"
                     for habit in habits
                 ]
                 insights.append(AIInsight(
                     user_id=user_id,
                     insight_type='habits',
                     content=f"Habits Analysis:\n{'. '.join(habits_analysis)}",
-                    recommendations=f"Work on rebuilding streaks for habits that have fallen below your best performance."
+                    recommendations="Work on rebuilding streaks for habits that have fallen below your best performance."
                 ))
             
-            # Save all insights
+            # Save insights
             for insight in insights:
                 db.session.add(insight)
             db.session.commit()
@@ -328,7 +412,8 @@ class AnalyticsService:
             'goals_progress': [a.goals_progress for a in analytics],
             'task_efficiency': [a.task_efficiency_score for a in analytics],
             'habit_impact': [a.habit_impact_score for a in analytics],
-            'goal_predictions': [a.goal_completion_prediction for a in analytics]
+            'goal_predictions': [a.goal_completion_prediction for a in analytics],
+            'weekly_patterns': [getattr(a, 'weekly_pattern', {}) for a in analytics]
         }
 
     @staticmethod

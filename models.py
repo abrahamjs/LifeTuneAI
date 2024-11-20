@@ -1,6 +1,7 @@
 from datetime import datetime
 from database import db
 from flask_login import UserMixin
+from sqlalchemy.dialects.postgresql import JSONB
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -73,6 +74,7 @@ class UserAnalytics(db.Model):
     task_efficiency_score = db.Column(db.Float, default=0.0)  # 0-100
     habit_impact_score = db.Column(db.Float, default=0.0)  # 0-100
     goal_completion_prediction = db.Column(db.Float, default=0.0)  # 0-100
+    weekly_pattern = db.Column(JSONB)  # Store weekly productivity patterns
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class AIInsight(db.Model):
