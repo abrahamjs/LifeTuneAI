@@ -226,13 +226,15 @@ function getPriorityBadgeClass(priority) {
 }
 
 function showGoalDetails(goalId) {
-    // Hide task modal first
+    // Close task modal if it's open
     const taskModal = bootstrap.Modal.getInstance(document.getElementById('taskDetailsModal'));
     if (taskModal) {
         taskModal.hide();
-        
-        // Wait for modal to finish hiding
-        setTimeout(() => {
+        document.getElementById('taskDetailsModal').addEventListener('hidden.bs.modal', function handler() {
+            // Remove the event listener to prevent memory leaks
+            document.getElementById('taskDetailsModal').removeEventListener('hidden.bs.modal', handler);
+            
+            // Now fetch and show goal details
             fetch(`/api/goals/${goalId}`)
                 .then(response => response.json())
                 .then(goal => {
@@ -295,8 +297,135 @@ function showGoalDetails(goalId) {
                     const goalModal = new bootstrap.Modal(document.getElementById('goalDetailsModal'));
                     goalModal.show();
                 });
-        }, 300); // Wait for modal transition
+        }, { once: true });  // Use once option as alternative to manual removal
+    } else {
+        // If task modal wasn't open, just show goal directly
+        fetch(`/api/goals/${goalId}`)
+            .then(response => response.json())
+            .then(goal => {
+                const detailsContent = document.getElementById('goalDetailsContent');
+                // Add goal details HTML (same as above)
+                detailsContent.innerHTML = `
+                    <div class="goal-details">
+                        <div class="goal-header mb-4">
+                            <h4>${goal.title}</h4>
+                            <span class="badge bg-${getCategoryBadgeClass(goal.category)} mb-2">${goal.category}</span>
+                            <p class="text-muted">${goal.description}</p>
+                        </div>
+                        <div class="goal-dates mb-4">
+                            <div class="row">
+                                <div class="col-6">
+                                    <small class="text-muted">Created</small>
+                                    <div>${new Date(goal.created_at).toLocaleDateString()}</div>
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-muted">Target Date</small>
+                                    <div>${new Date(goal.target_date).toLocaleDateString()}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="goal-progress mb-4">
+                            <h6>Progress</h6>
+                            <div class="progress">
+                                <div class="progress-bar" role="progressbar" 
+                                     style="width: ${goal.progress}%" 
+                                     aria-valuenow="${goal.progress}" 
+                                     aria-valuemin="0" 
+                                     aria-valuemax="100">
+                                    ${goal.progress}%
+                                </div>
+                            </div>
+                        </div>
+                        <div class="goal-tasks">
+                            <h6>Related Tasks</h6>
+                            <div class="list-group">
+                                ${goal.tasks.map(task => `
+                                    <button class="list-group-item list-group-item-action" 
+                                            onclick="openTaskDetails(${task.id}, ${goal.id})">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <div class="fw-bold">${task.title}</div>
+                                                <small class="text-muted">${task.description || ''}</small>
+                                            </div>
+                                            <span class="badge bg-${getPriorityBadgeClass(task.priority)}">${task.priority}</span>
+                                        </div>
+                                    </button>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Setup handlers
+                document.getElementById('deleteGoal').onclick = () => deleteGoal(goal.id);
+                document.getElementById('editGoal').onclick = () => editGoal(goal.id);
+                
+                const goalModal = new bootstrap.Modal(document.getElementById('goalDetailsModal'));
+                goalModal.show();
+            });
     }
+}
+
+function hideModal(modalId) {
+    return new Promise((resolve) => {
+        const modal = bootstrap.Modal.getInstance(document.getElementById(modalId));
+        if (modal) {
+            document.getElementById(modalId).addEventListener('hidden.bs.modal', () => resolve(), { once: true });
+            modal.hide();
+        } else {
+            resolve();
+        }
+    });
+}
+
+async function openTaskDetails(taskId, goalId) {
+    await hideModal('goalDetailsModal');
+    // Now fetch and show task details
+    const response = await fetch(`/api/tasks/${taskId}`);
+    const task = await response.json();
+    
+    const detailsContent = document.getElementById('taskDetailsContent');
+    detailsContent.innerHTML = `
+        <div class="task-details">
+            ${goalId ? `
+                <div class="mb-3 goal-link">
+                    <h6>Related Goal</h6>
+                    <button class="btn btn-link p-0" onclick="showGoalDetails(${goalId}); return false;">
+                        <i class="bi bi-arrow-up-right-circle"></i> View Related Goal
+                    </button>
+                </div>
+            ` : ''}
+            <div class="mb-3">
+                <h6>Title</h6>
+                <p>${task.title}</p>
+            </div>
+            <div class="mb-3">
+                <h6>Description</h6>
+                <p>${task.description || 'No description'}</p>
+            </div>
+            <div class="mb-3">
+                <h6>Priority</h6>
+                <span class="badge bg-${getPriorityBadgeClass(task.priority)}">${task.priority}</span>
+            </div>
+            <div class="mb-3">
+                <h6>Due Date</h6>
+                <p>${task.due_date ? new Date(task.due_date).toLocaleDateString() : 'No due date'}</p>
+            </div>
+            <div class="mb-3">
+                <h6>Status</h6>
+                <span class="badge bg-${task.completed ? 'success' : 'warning'}">
+                    ${task.completed ? 'Completed' : 'Pending'}
+                </span>
+            </div>
+        </div>
+    `;
+    
+    // Setup handlers
+    document.getElementById('deleteTask').onclick = () => deleteTask(task.id);
+    document.getElementById('editTask').onclick = () => editTask(task.id);
+    
+    const taskModal = new bootstrap.Modal(document.getElementById('taskDetailsModal'));
+    taskModal.show();
 }
 
 function getCategoryBadgeClass(category) {
@@ -306,19 +435,6 @@ function getCategoryBadgeClass(category) {
         case 'health': return 'success';
         case 'finance': return 'warning';
         default: return 'info';
-    }
-}
-
-function openTaskDetails(taskId, goalId) {
-    // Hide the goal details modal first
-    const goalModal = bootstrap.Modal.getInstance(document.getElementById('goalDetailsModal'));
-    if (goalModal) {
-        goalModal.hide();
-        
-        // Wait for the modal to finish hiding
-        setTimeout(() => {
-            showTaskDetails(taskId); // Display the task details
-        }, 300); // Wait for modal transition
     }
 }
 
