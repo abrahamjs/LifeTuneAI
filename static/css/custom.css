@@ -359,3 +359,67 @@ canvas {
 .challenge-complete {
     animation: challengeComplete 0.5s ease-out;
 }
+
+/* Social Feed Styles */
+.activity-filters {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bs-dark);
+    padding: 1rem 0;
+}
+
+.activity-card.new-activity {
+    opacity: 0;
+    transform: translateY(-20px);
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.sentinel {
+    height: 20px;
+    margin-top: 1rem;
+}
+
+/* Social Interaction Animations */
+.like-animation {
+    animation: likeScale 0.3s ease-in-out;
+}
+
+@keyframes likeScale {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+
+.follow-button {
+    transition: all 0.3s ease;
+}
+
+.follow-button.following {
+    background-color: var(--bs-success);
+    border-color: var(--bs-success);
+}
+
+.follow-button.following:hover {
+    background-color: var(--bs-danger);
+    border-color: var(--bs-danger);
+}
+
+.follow-button.following:hover .follow-text::before {
+    content: "Unfollow";
+}
+
+.follow-button.following .follow-text::before {
+    content: "Following";
+}
+</new_str>
