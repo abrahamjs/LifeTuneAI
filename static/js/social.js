@@ -262,7 +262,7 @@ function loadActivityFeed(reset = false) {
         document.getElementById('activityFeed').innerHTML = '';
     }
     
-    fetch(`/api/social/activity-feed?filter=${selectedFilter}`)
+    fetch(`/api/social/feed?filter=${selectedFilter}`)
         .then(response => response.json())
         .then(activities => {
             if (activities.length > 0) {

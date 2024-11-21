@@ -475,61 +475,791 @@ def reset_analytics_data():
 @app.route('/social/feed')
 @login_required_if_enabled
 def social_feed():
+    """Render the social feed page"""
     return render_template('social_feed.html')
-
 
 @app.route('/social/profile/<int:user_id>')
 @login_required_if_enabled
 def social_profile(user_id):
-    return render_template('social_profile.html')
-
+    """Render the social profile page"""
+    return render_template('social_profile.html', user_id=user_id)
 
 @app.route('/profile')
 @login_required_if_enabled
 def profile():
-    return render_template('profile.html')
+    """Render the current user's profile page"""
+    return render_template('social_profile.html', user_id=current_user.id if AUTH_REQUIRED else 1)
 
-
+# Social API Routes
 @app.route('/api/social/users/<int:user_id>')
 @login_required_if_enabled
-def get_social_user_profile(user_id):
+def get_user_profile(user_id):
+    """Get user profile information"""
     user = User.query.get_or_404(user_id)
-    if not user.privacy_settings.get('profile_visible', True):
+    if not user.privacy_settings.get('profile_visible', True) and (not AUTH_REQUIRED or user.id != current_user.id):
         return jsonify({'error': 'Profile not visible'}), 403
 
     return jsonify({
-        'username':
-        user.username,
-        'bio':
-        user.bio,
-        'level':
-        user.level,
-        'followers_count':
-        user.followers.count(),
-        'following_count':
-        user.following.count(),
-        'achievements_count':
-        len(user.achievements),
-        'is_current_user':
-        user.id == current_user.id if AUTH_REQUIRED else False,
-        'is_following':
-        user in current_user.following if AUTH_REQUIRED else False
+        'username': user.username,
+        'bio': user.bio,
+        'level': user.level,
+        'followers_count': user.followers.count(),
+        'following_count': user.following.count(),
+        'achievements_count': len(user.achievements),
+        'is_current_user': user.id == current_user.id if AUTH_REQUIRED else False,
+        'is_following': user in current_user.following if AUTH_REQUIRED else False,
+        'privacy_settings': user.privacy_settings if (AUTH_REQUIRED and user.id == current_user.id) else None
+    })
+
+
+@app.route('/api/social/shared-content/<int:content_id>/comments', methods=['GET', 'POST'])
+@login_required_if_enabled
+def handle_comments(content_id):
+    """Handle comments on shared content"""
+    content = SharedContent.query.get_or_404(content_id)
+    
+    if request.method == 'POST':
+        if not content.comments_enabled:
+            return jsonify({'error': 'Comments are disabled'}), 403
+            
+        data = request.get_json()
+        comment = Comment(
+            user_id=current_user.id if AUTH_REQUIRED else 1,
+            shared_content_id=content_id,
+            content=data.get('content')
+        )
+        db.session.add(comment)
+        db.session.commit()
+        
+        return jsonify({
+            'status': 'success',
+            'comment': {
+                'id': comment.id,
+                'content': comment.content,
+                'created_at': comment.created_at.isoformat(),
+                'user_id': comment.user_id,
+                'username': User.query.get(comment.user_id).username
+            }
+        })
+        
+    # GET request - return all comments
+    comments = Comment.query.filter_by(shared_content_id=content_id).order_by(Comment.created_at.desc()).all()
+    return jsonify([{
+        'id': comment.id,
+        'content': comment.content,
+        'created_at': comment.created_at.isoformat(),
+        'user_id': comment.user_id,
+        'username': User.query.get(comment.user_id).username
+    } for comment in comments])
+
+@app.route('/api/social/shared-content/<int:content_id>/like', methods=['POST'])
+@login_required_if_enabled
+def like_content(content_id):
+    """Like or unlike shared content"""
+    content = SharedContent.query.get_or_404(content_id)
+    content.likes = content.likes + 1
+    db.session.commit()
+    return jsonify({'status': 'success', 'likes': content.likes})
+    filter_type = request.args.get('filter', 'all')
+    before_id = request.args.get('before_id', type=int)
+    following_only = request.args.get('following_only', type=bool, default=False)
+    
+    query = ActivityFeed.query
+    
+    if filter_type != 'all':
+        query = query.filter(ActivityFeed.activity_type == filter_type)
+    
+    if following_only and AUTH_REQUIRED:
+        following_ids = [u.id for u in current_user.following]
+        following_ids.append(current_user.id)
+        query = query.filter(ActivityFeed.user_id.in_(following_ids))
+    else:
+        query = query.filter(
+            (ActivityFeed.privacy_level == 'public') |
+            (ActivityFeed.user_id == current_user.id if AUTH_REQUIRED else False)
+        )
+    
+    if before_id:
+        query = query.filter(ActivityFeed.id < before_id)
+    
+    activities = query.order_by(ActivityFeed.created_at.desc()).limit(10).all()
+    
+    return jsonify([{
+        'id': activity.id,
+        'user_id': activity.user_id,
+        'type': activity.activity_type,
+        'content': activity.content,
+        'created_at': activity.created_at.isoformat(),
+        'privacy_level': activity.privacy_level,
+        'username': User.query.get(activity.user_id).username if User.query.get(activity.user_id) else 'Unknown'
+    } for activity in activities])
+    filter_type = request.args.get('filter', 'all')
+    before_id = request.args.get('before_id', type=int)
+    following_only = request.args.get('following_only', type=bool, default=False)
+    
+    query = ActivityFeed.query
+    
+    if filter_type != 'all':
+        query = query.filter(ActivityFeed.activity_type == filter_type)
+    
+    if following_only and AUTH_REQUIRED:
+        following_ids = [u.id for u in current_user.following]
+        following_ids.append(current_user.id)
+        query = query.filter(ActivityFeed.user_id.in_(following_ids))
+    else:
+        query = query.filter(
+            (ActivityFeed.privacy_level == 'public') |
+            (ActivityFeed.user_id == current_user.id if AUTH_REQUIRED else False)
+        )
+    
+    if before_id:
+        query = query.filter(ActivityFeed.id < before_id)
+    
+    activities = query.order_by(ActivityFeed.created_at.desc()).limit(10).all()
+    
+    activity_list = []
+    for activity in activities:
+        user = User.query.get(activity.user_id)
+        activity_data = {
+            'id': activity.id,
+            'user_id': activity.user_id,
+            'type': activity.activity_type,
+            'content': activity.content,
+            'created_at': activity.created_at.isoformat(),
+            'privacy_level': activity.privacy_level,
+            'username': user.username if user else 'Unknown'
+        }
+        activity_list.append(activity_data)
+    
+    return jsonify(activity_list)
+    filter_type = request.args.get('filter', 'all')
+    before_id = request.args.get('before_id', type=int)
+    following_only = request.args.get('following_only', type=bool, default=False)
+    
+    query = ActivityFeed.query
+    
+    if filter_type != 'all':
+        query = query.filter(ActivityFeed.activity_type == filter_type)
+    
+    if following_only and AUTH_REQUIRED:
+        following_ids = [u.id for u in current_user.following]
+        following_ids.append(current_user.id)
+        query = query.filter(ActivityFeed.user_id.in_(following_ids))
+    else:
+        query = query.filter(
+            (ActivityFeed.privacy_level == 'public') |
+            (ActivityFeed.user_id == current_user.id if AUTH_REQUIRED else False)
+        )
+    
+    if before_id:
+        query = query.filter(ActivityFeed.id < before_id)
+    
+    activities = query.order_by(ActivityFeed.created_at.desc()).limit(10).all()
+    
+    activity_list = []
+    for activity in activities:
+        user = User.query.get(activity.user_id)
+        activity_data = {
+            'id': activity.id,
+            'user_id': activity.user_id,
+            'type': activity.activity_type,
+            'content': activity.content,
+            'created_at': activity.created_at.isoformat(),
+            'privacy_level': activity.privacy_level,
+            'username': user.username if user else 'Unknown'
+        }
+        activity_list.append(activity_data)
+    
+    return jsonify(activity_list)
+    filter_type = request.args.get('filter', 'all')
+    before_id = request.args.get('before_id', type=int)
+    following_only = request.args.get('following_only', type=bool, default=False)
+    
+    query = ActivityFeed.query
+    
+    if filter_type != 'all':
+        query = query.filter(ActivityFeed.activity_type == filter_type)
+    
+    if following_only and AUTH_REQUIRED:
+        following_ids = [u.id for u in current_user.following]
+        following_ids.append(current_user.id)
+        query = query.filter(ActivityFeed.user_id.in_(following_ids))
+    else:
+        query = query.filter(
+            (ActivityFeed.privacy_level == 'public') |
+            (ActivityFeed.user_id == current_user.id if AUTH_REQUIRED else False)
+        )
+    
+    if before_id:
+        query = query.filter(ActivityFeed.id < before_id)
+    
+    activities = query.order_by(ActivityFeed.created_at.desc()).limit(10).all()
+    
+    activity_list = []
+    for activity in activities:
+        user = User.query.get(activity.user_id)
+        activity_data = {
+            'id': activity.id,
+            'user_id': activity.user_id,
+            'type': activity.activity_type,
+            'content': activity.content,
+            'created_at': activity.created_at.isoformat(),
+            'privacy_level': activity.privacy_level,
+            'username': user.username if user else 'Unknown'
+        }
+        activity_list.append(activity_data)
+    
+    return jsonify(activity_list)
+    filter_type = request.args.get('filter', 'all')
+    before_id = request.args.get('before_id', type=int)
+    following_only = request.args.get('following_only', type=bool, default=False)
+    
+    query = ActivityFeed.query
+
+    if filter_type != 'all':
+        query = query.filter(ActivityFeed.activity_type == filter_type)
+    
+    if following_only and AUTH_REQUIRED:
+        following_ids = [u.id for u in current_user.following]
+        following_ids.append(current_user.id)
+        query = query.filter(ActivityFeed.user_id.in_(following_ids))
+    else:
+        query = query.filter(
+            (ActivityFeed.privacy_level == 'public') |
+            (ActivityFeed.user_id == current_user.id if AUTH_REQUIRED else False)
+        )
+    
+    if before_id:
+        query = query.filter(ActivityFeed.id < before_id)
+    
+    activities = query.order_by(ActivityFeed.created_at.desc()).limit(10).all()
+    
+    activity_list = []
+    for activity in activities:
+        user = User.query.get(activity.user_id)
+        activity_data = {
+            'id': activity.id,
+            'user_id': activity.user_id,
+            'type': activity.activity_type,
+            'content': activity.content,
+            'created_at': activity.created_at.isoformat(),
+            'privacy_level': activity.privacy_level,
+            'username': user.username if user else 'Unknown'
+        }
+        activity_list.append(activity_data)
+    
+    return jsonify(activity_list)
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
+    before_id = request.args.get('before_id', type=int)
+    following_only = request.args.get('following_only', type=bool, default=False)
+    
+    query = ActivityFeed.query
+    
+    if filter_type != 'all':
+        query = query.filter(ActivityFeed.activity_type == filter_type)
+    
+    if following_only and AUTH_REQUIRED:
+        following_ids = [user.id for user in current_user.following]
+        following_ids.append(current_user.id)
+        query = query.filter(ActivityFeed.user_id.in_(following_ids))
+    else:
+        query = query.filter(
+            (ActivityFeed.privacy_level == 'public') |
+            (ActivityFeed.user_id == current_user.id if AUTH_REQUIRED else False)
+        )
+    
+    if before_id:
+        query = query.filter(ActivityFeed.id < before_id)
+    
+    activities = query.order_by(ActivityFeed.created_at.desc()).limit(10).all()
+    
+    return jsonify([{
+        'id': activity.id,
+        'user_id': activity.user_id,
+        'type': activity.activity_type,
+        'content': activity.content,
+        'created_at': activity.created_at.isoformat(),
+        'privacy_level': activity.privacy_level,
+        'username': User.query.get(activity.user_id).username if User.query.get(activity.user_id) else 'Unknown'
+    } for activity in activities])
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
+    """Get social activity feed with filtering and pagination"""
+    filter_type = request.args.get('filter', 'all')
+    before_id = request.args.get('before_id', type=int)
+    following_only = request.args.get('following_only', type=bool, default=False)
+    
+    query = ActivityFeed.query
+    
+    if filter_type != 'all':
+        query = query.filter(ActivityFeed.activity_type.contains(filter_type))
+    
+    if following_only and AUTH_REQUIRED:
+        following_ids = [user.id for user in current_user.following]
+        following_ids.append(current_user.id)
+        query = query.filter(ActivityFeed.user_id.in_(following_ids))
+    else:
+        query = query.filter(
+            (ActivityFeed.privacy_level == 'public') |
+            (ActivityFeed.user_id == current_user.id if AUTH_REQUIRED else False)
+        )
+    
+    if before_id:
+        query = query.filter(ActivityFeed.id < before_id)
+    
+    activities = query.order_by(ActivityFeed.created_at.desc()).limit(10).all()
+    
+    return jsonify([{
+        'id': activity.id,
+        'user_id': activity.user_id,
+        'type': activity.activity_type,
+        'content': activity.content,
+        'created_at': activity.created_at.isoformat(),
+        'privacy_level': activity.privacy_level,
+        'username': User.query.get(activity.user_id).username if User.query.get(activity.user_id) else 'Unknown'
+    } for activity in activities])
+        'user_id': activity.user_id,
+        'type': activity.activity_type,
+        'content': activity.content,
+        'created_at': activity.created_at.isoformat(),
+        'privacy_level': activity.privacy_level,
+        'username': User.query.get(activity.user_id).username if User.query.get(activity.user_id) else 'Unknown'
+    } for activity in activities])
+
+@app.route('/api/social/users/<int:user_id>')
+@login_required_if_enabled
+def get_user_profile(user_id):
+    """Get user profile information"""
+    user = User.query.get_or_404(user_id)
+    if not user.privacy_settings.get('profile_visible', True) and user.id != current_user.id:
+        return jsonify({'error': 'Profile not visible'}), 403
+
+    return jsonify({
+        'username': user.username,
+        'bio': user.bio,
+        'level': user.level,
+        'followers_count': user.followers.count(),
+        'following_count': user.following.count(),
+        'achievements_count': len(user.achievements),
+        'is_current_user': user.id == current_user.id if AUTH_REQUIRED else False,
+        'is_following': user in current_user.following if AUTH_REQUIRED else False,
+        'privacy_settings': user.privacy_settings if user.id == current_user.id else None
+    })
+
+@app.route('/api/social/unfollow/<int:user_id>', methods=['POST'])
+@login_required_if_enabled
+def unfollow_user(user_id):
+    """Unfollow a user"""
+    user_to_unfollow = User.query.get_or_404(user_id)
+    if user_to_unfollow in current_user.following:
+        current_user.following.remove(user_to_unfollow)
+        db.session.commit()
+    return jsonify({'status': 'success'})
+
+@app.route('/api/social/privacy-settings', methods=['PUT'])
+@login_required_if_enabled
+def update_privacy_settings():
+    """Update user privacy settings"""
+    data = request.get_json()
+    current_user.privacy_settings = {
+        'share_achievements': data.get('share_achievements', True),
+        'share_goals': data.get('share_goals', True),
+        'share_habits': data.get('share_habits', False),
+        'profile_visible': data.get('profile_visible', True)
+    }
+    db.session.commit()
+    return jsonify({'status': 'success'})
+
+@app.route('/api/social/shared-content/<int:content_id>/comments', methods=['GET', 'POST'])
+@login_required_if_enabled
+def handle_comments(content_id):
+    """Handle comments on shared content"""
+    content = SharedContent.query.get_or_404(content_id)
+    
+    if request.method == 'POST':
+        if not content.comments_enabled:
+            return jsonify({'error': 'Comments are disabled'}), 403
+            
+        data = request.get_json()
+        comment = Comment(
+            user_id=current_user.id if AUTH_REQUIRED else 1,
+            shared_content_id=content_id,
+            content=data['content']
+        )
+        db.session.add(comment)
+        db.session.commit()
+        
+        return jsonify({
+            'status': 'success',
+            'comment': {
+                'id': comment.id,
+                'content': comment.content,
+                'created_at': comment.created_at.isoformat(),
+                'username': User.query.get(comment.user_id).username
+            }
+        })
+    
+    # GET method
+    comments = Comment.query.filter_by(shared_content_id=content_id).all()
+    return jsonify([{
+        'id': comment.id,
+        'content': comment.content,
+        'created_at': comment.created_at.isoformat(),
+        'username': User.query.get(comment.user_id).username
+    } for comment in comments])
+
+@app.route('/api/social/shared-content/<int:content_id>/like', methods=['POST'])
+@login_required_if_enabled
+def like_content(content_id):
+    """Like or unlike shared content"""
+    content = SharedContent.query.get_or_404(content_id)
+    content.likes = content.likes + 1
+    db.session.commit()
+    return jsonify({'status': 'success'})
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
+    # Get activities with user information
+    activities = query.order_by(ActivityFeed.created_at.desc()).limit(10).all()
+    return jsonify([{
+        'id': activity.id,
+        'user_id': activity.user_id,
+        'type': activity.activity_type,
+        'content': activity.content,
+        'created_at': activity.created_at.isoformat(),
+        'privacy_level': activity.privacy_level,
+        'username': User.query.get(activity.user_id).username if User.query.get(activity.user_id) else 'Unknown'
+    } for activity in activities])
+
+    # Get activities with user information
+    activities = query.order_by(ActivityFeed.created_at.desc()).limit(10).all()
+    return jsonify([{
+        'id': activity.id,
+        'user_id': activity.user_id,
+        'type': activity.activity_type,
+        'content': activity.content,
+        'created_at': activity.created_at.isoformat(),
+        'privacy_level': activity.privacy_level,
+        'username': User.query.get(activity.user_id).username if User.query.get(activity.user_id) else 'Unknown'
+    } for activity in activities])
+
+    # Get activities with user information
+    activities = query.order_by(ActivityFeed.created_at.desc()).limit(10).all()
+    return jsonify([{
+        'id': activity.id,
+        'user_id': activity.user_id,
+        'type': activity.activity_type,
+        'content': activity.content,
+        'created_at': activity.created_at.isoformat(),
+        'privacy_level': activity.privacy_level,
+        'username': User.query.get(activity.user_id).username if User.query.get(activity.user_id) else 'Unknown'
+    } for activity in activities])
+
+    # Get activities with user information
+    activities = query.order_by(ActivityFeed.created_at.desc()).limit(10).all()
+
+    return jsonify([{
+        'id': activity.id,
+        'user_id': activity.user_id,
+        'type': activity.activity_type,
+        'content': activity.content,
+        'created_at': activity.created_at.isoformat(),
+        'privacy_level': activity.privacy_level,
+        'username': User.query.get(activity.user_id).username if User.query.get(activity.user_id) else 'Unknown'
+    } for activity in activities])
+
+    # Get activities with user information
+    activities = query.order_by(ActivityFeed.created_at.desc()).limit(10).all()
+
+    return jsonify([{
+        'id': activity.id,
+        'user_id': activity.user_id,
+        'type': activity.activity_type,
+        'content': activity.content,
+        'created_at': activity.created_at.isoformat(),
+        'privacy_level': activity.privacy_level,
+        'username': User.query.get(activity.user_id).username if User.query.get(activity.user_id) else 'Unknown'
+    } for activity in activities])
+
+@app.route('/api/social/users/<int:user_id>')
+@login_required_if_enabled
+def get_user_profile(user_id):
+    """Get user profile information"""
+    user = User.query.get_or_404(user_id)
+    if not user.privacy_settings.get('profile_visible', True) and user.id != current_user.id:
+        return jsonify({'error': 'Profile not visible'}), 403
+
+    return jsonify({
+        'username': user.username,
+        'bio': user.bio,
+        'level': user.level,
+        'followers_count': user.followers.count(),
+        'following_count': user.following.count(),
+        'achievements_count': len(user.achievements),
+        'is_current_user': user.id == current_user.id if AUTH_REQUIRED else False,
+        'is_following': user in current_user.following if AUTH_REQUIRED else False,
+        'privacy_settings': user.privacy_settings if user.id == current_user.id else None
+    })
+
+
+@app.route('/api/social/privacy-settings', methods=['PUT'])
+@login_required_if_enabled
+def update_privacy_settings():
+    """Update user privacy settings"""
+    if not AUTH_REQUIRED:
+        return jsonify({'error': 'Authentication required'}), 403
+
+    data = request.get_json()
+    user = current_user
+    user.privacy_settings = {
+        'share_achievements': data.get('share_achievements', True),
+        'share_goals': data.get('share_goals', True),
+        'share_habits': data.get('share_habits', False),
+        'profile_visible': data.get('profile_visible', True)
+    }
+    db.session.commit()
+    return jsonify({'status': 'success'})
+    """Get social activity feed with filtering and pagination"""
+    filter_type = request.args.get('filter', 'all')
+    before_id = request.args.get('before_id', type=int)
+    following_only = request.args.get('following_only', type=bool, default=False)
+
+    # Base query for activities
+    query = ActivityFeed.query
+
+    # Filter by type if specified
+    if filter_type != 'all':
+        query = query.filter(ActivityFeed.activity_type.contains(filter_type))
+
+    # Filter by visibility and following
+    if following_only and AUTH_REQUIRED:
+        following_ids = [user.id for user in current_user.following]
+        following_ids.append(current_user.id)
+        query = query.filter(ActivityFeed.user_id.in_(following_ids))
+    else:
+        query = query.filter(
+            (ActivityFeed.privacy_level == 'public') |
+            (ActivityFeed.user_id == current_user.id if AUTH_REQUIRED else False)
+        )
+
+    # Apply pagination
+    if before_id:
+        query = query.filter(ActivityFeed.id < before_id)
+
+    # Get activities with user information
+    activities = query.order_by(ActivityFeed.created_at.desc()).limit(10).all()
+
+    return jsonify([{
+        'id': activity.id,
+        'user_id': activity.user_id,
+        'type': activity.activity_type,
+        'content': activity.content,
+        'created_at': activity.created_at.isoformat(),
+        'privacy_level': activity.privacy_level,
+        'username': User.query.get(activity.user_id).username if User.query.get(activity.user_id) else 'Unknown'
+    } for activity in activities])
+
+@app.route('/api/social/users/<int:user_id>')
+@login_required_if_enabled
+def get_user_profile(user_id):
+    """Get user profile information"""
+    user = User.query.get_or_404(user_id)
+    if not user.privacy_settings.get('profile_visible', True) and user.id != current_user.id:
+        return jsonify({'error': 'Profile not visible'}), 403
+
+    return jsonify({
+        'username': user.username,
+        'bio': user.bio,
+        'level': user.level,
+        'followers_count': user.followers.count(),
+        'following_count': user.following.count(),
+        'achievements_count': len(user.achievements),
+        'is_current_user': user.id == current_user.id if AUTH_REQUIRED else False,
+        'is_following': user in current_user.following if AUTH_REQUIRED else False,
+        'privacy_settings': user.privacy_settings if user.id == current_user.id else None
+    })
+
+@app.route('/api/social/shared-content/<int:content_id>/comments', methods=['GET', 'POST'])
+@login_required_if_enabled
+def handle_comments(content_id):
+    """Handle comments on shared content"""
+    content = SharedContent.query.get_or_404(content_id)
+    
+    if request.method == 'POST':
+        if not content.comments_enabled:
+            return jsonify({'error': 'Comments are disabled'}), 403
+            
+        data = request.get_json()
+        comment = Comment(
+            user_id=current_user.id if AUTH_REQUIRED else 1,
+            shared_content_id=content_id,
+            content=data['content']
+        )
+        db.session.add(comment)
+        db.session.commit()
+        return jsonify({'status': 'success'})
+    
+    # GET method
+    comments = Comment.query.filter_by(shared_content_id=content_id).all()
+    return jsonify([{
+        'id': comment.id,
+        'user_id': comment.user_id,
+        'content': comment.content,
+        'created_at': comment.created_at.isoformat(),
+        'username': User.query.get(comment.user_id).username if User.query.get(comment.user_id) else 'Unknown'
+    } for comment in comments])
+        'privacy_settings': user.privacy_settings if user.id == current_user.id else None
     })
 
 
 @app.route('/api/social/feed')
 @login_required_if_enabled
-def get_social_activity_feed():
+def get_activity_feed():
+    """Get social activity feed with filtering and pagination"""
     filter_type = request.args.get('filter', 'all')
     before_id = request.args.get('before_id', type=int)
+    following_only = request.args.get('following_only', type=bool, default=False)
 
-    query = ActivityFeed.query.filter(ActivityFeed.privacy_level == 'public')
+    # Base query for activities
+    query = ActivityFeed.query
 
+    # Filter by type if specified
     if filter_type != 'all':
         query = query.filter(ActivityFeed.activity_type.contains(filter_type))
 
+    # Filter by visibility and following
+    if following_only and AUTH_REQUIRED:
+        following_ids = [user.id for user in current_user.following]
+        following_ids.append(current_user.id)
+        query = query.filter(ActivityFeed.user_id.in_(following_ids))
+    else:
+        query = query.filter(
+            (ActivityFeed.privacy_level == 'public') |
+            (ActivityFeed.user_id == current_user.id if AUTH_REQUIRED else False)
+        )
+
+    # Apply pagination
     if before_id:
         query = query.filter(ActivityFeed.id < before_id)
+
+    # Get activities
+    activities = query.order_by(ActivityFeed.created_at.desc()).limit(10).all()
+
+    return jsonify([{
+        'id': activity.id,
+        'user_id': activity.user_id,
+        'type': activity.activity_type,
+        'content': activity.content,
+        'created_at': activity.created_at.isoformat(),
+        'privacy_level': activity.privacy_level,
+        'username': User.query.get(activity.user_id).username if User.query.get(activity.user_id) else 'Unknown'
+    } for activity in activities])
+    following_only = request.args.get('following_only', type=bool, default=False)
+
+    # Base query for activities
+    query = ActivityFeed.query
+
+    # Filter by type if specified
+    if filter_type != 'all':
+        query = query.filter(ActivityFeed.activity_type.contains(filter_type))
+
+    # Filter by visibility and following
+    if following_only and AUTH_REQUIRED:
+        following_ids = [user.id for user in current_user.following]
+        following_ids.append(current_user.id)
+        query = query.filter(ActivityFeed.user_id.in_(following_ids))
+    else:
+        query = query.filter(
+            (ActivityFeed.privacy_level == 'public') |
+            (ActivityFeed.user_id == current_user.id if AUTH_REQUIRED else False)
+        )
+
+    # Apply pagination
+    if before_id:
+        query = query.filter(ActivityFeed.id < before_id)
+
+    # Get activities
+    activities = query.order_by(ActivityFeed.created_at.desc()).limit(10).all()
+
+    return jsonify([{
+        'id': activity.id,
+        'user_id': activity.user_id,
+        'type': activity.activity_type,
+        'content': activity.content,
+        'created_at': activity.created_at.isoformat(),
+        'privacy_level': activity.privacy_level,
+        'username': User.query.get(activity.user_id).username
+    } for activity in activities])
+    following_only = request.args.get('following_only', type=bool, default=False)
+
+    # Base query for activities
+    query = ActivityFeed.query
+
+    # Filter by type if specified
+    if filter_type != 'all':
+        query = query.filter(ActivityFeed.activity_type.contains(filter_type))
+
+    # Filter by visibility and following
+    if following_only and AUTH_REQUIRED:
+        following_ids = [user.id for user in current_user.following]
+        following_ids.append(current_user.id)
+        query = query.filter(
+            ActivityFeed.user_id.in_(following_ids)
+        )
+    else:
+        query = query.filter(
+            (ActivityFeed.privacy_level == 'public') |
+            (ActivityFeed.user_id == current_user.id if AUTH_REQUIRED else False)
+        )
+
+    # Apply pagination
+    if before_id:
+        query = query.filter(ActivityFeed.id < before_id)
+
+    # Get activities
+    activities = query.order_by(ActivityFeed.created_at.desc()).limit(10).all()
+
+    return jsonify([{
+        'id': activity.id,
+        'user_id': activity.user_id,
+        'type': activity.activity_type,
+        'content': activity.content,
+        'created_at': activity.created_at.isoformat(),
+        'privacy_level': activity.privacy_level,
+        'username': User.query.get(activity.user_id).username
+    } for activity in activities])
+
+    # Base query for public activities
+    query = ActivityFeed.query.filter(
+        (ActivityFeed.privacy_level == 'public') |
+        (ActivityFeed.user_id == current_user.id if AUTH_REQUIRED else False)
+    )
+
+    # Apply type filter if specified
+    if filter_type != 'all':
+        query = query.filter(ActivityFeed.activity_type.contains(filter_type))
+
+    # Apply pagination
+    if before_id:
+        query = query.filter(ActivityFeed.id < before_id)
+
+    # Get activities
+    activities = query.order_by(ActivityFeed.created_at.desc()).limit(10).all()
+
+    return jsonify([{
+        'id': activity.id,
+        'user_id': activity.user_id,
+        'type': activity.activity_type,
+        'content': activity.content,
+        'created_at': activity.created_at.isoformat(),
+        'privacy_level': activity.privacy_level
+    } for activity in activities])
 
     activities = query.order_by(ActivityFeed.created_at.desc()).limit(10).all()
 
@@ -609,56 +1339,6 @@ def follow_user(user_id):
         db.session.rollback()
         return jsonify({'error': 'Failed to follow user'}), 500
 
-
-@app.route('/api/social/activity-feed')
-@login_required_if_enabled
-def get_activity_feed():
-    """Get user's activity feed with pagination and filtering"""
-    try:
-        filter_type = request.args.get('filter', 'all')
-        before_id = request.args.get('before_id', type=int)
-        page_size = min(int(request.args.get('page_size', 10)),
-                        50)  # Limit max page size
-
-        # Get activities from users being followed and public activities
-        following_ids = [u.id for u in current_user.following]
-        following_ids.append(current_user.id)
-
-        query = ActivityFeed.query.filter(
-            (ActivityFeed.user_id.in_(following_ids))
-            | (ActivityFeed.privacy_level == 'public'))
-
-        if filter_type != 'all':
-            query = query.filter(
-                ActivityFeed.activity_type.contains(filter_type))
-
-        if before_id:
-            query = query.filter(ActivityFeed.id < before_id)
-
-        activities = query.order_by(
-            ActivityFeed.created_at.desc()).limit(page_size).all()
-
-        return jsonify({
-            'status':
-            'success',
-            'activities': [{
-                'id': activity.id,
-                'activity_type': activity.activity_type,
-                'content': activity.content,
-                'created_at': activity.created_at.isoformat(),
-                'user': {
-                    'username': User.query.get(activity.user_id).username,
-                    'id': activity.user_id
-                },
-                'privacy_level': activity.privacy_level
-            } for activity in activities],
-            'has_more':
-            len(activities) == page_size
-        })
-    except Exception as e:
-        return jsonify({'error': 'Failed to fetch activity feed'}), 500
-
-
 @app.route('/api/social/activity-feed/new')
 @login_required_if_enabled
 def get_new_activities():
@@ -693,20 +1373,6 @@ def get_new_activities():
 
 
 # Route removed as it's already defined above
-
-# Route removed as it's already defined above
-
-
-@app.route('/api/social/unfollow/<int:user_id>', methods=['POST'])
-@login_required_if_enabled
-def unfollow_user(user_id):
-    user_to_unfollow = User.query.get_or_404(user_id)
-    if user_to_unfollow in current_user.following:
-        current_user.following.remove(user_to_unfollow)
-        db.session.commit()
-        return jsonify({'status': 'success'})
-    return jsonify({'error': 'Not following this user'}), 400
-
 
 @app.route('/api/social/share-content', methods=['POST'])
 @login_required_if_enabled
@@ -861,85 +1527,13 @@ def get_leaderboard():
     return jsonify({'status': 'success', 'shared_id': shared.id})
 
 
-@app.route('/api/social/feed')
-@login_required_if_enabled
-def get_activity_feed():
-    # Get activities from users being followed and public activities
-    following_ids = [user.id for user in current_user.following]
-    following_ids.append(current_user.id)
-
-    activities = ActivityFeed.query.filter(
-        (ActivityFeed.user_id.in_(following_ids))
-        & ((ActivityFeed.privacy_level == 'public') | (
-            (ActivityFeed.privacy_level == 'followers') &
-            (ActivityFeed.user_id.in_(following_ids))))).order_by(
-                ActivityFeed.created_at.desc()).limit(50).all()
-
-    return jsonify([{
-        'id': activity.id,
-        'user_id': activity.user_id,
-        'type': activity.activity_type,
-        'content': activity.content,
-        'created_at': activity.created_at.isoformat()
-    } for activity in activities])
+# Route removed as it's already defined above with better implementation
 
 
-@app.route('/api/social/profile/<int:user_id>')
-@login_required_if_enabled
-def get_user_profile(user_id):
-    user = User.query.get_or_404(user_id)
-
-    if not user.privacy_settings.get('profile_visible',
-                                     True) and user_id != current_user.id:
-        return jsonify({'error': 'Profile not visible'}), 403
-
-    return jsonify({
-        'username':
-        user.username,
-        'bio':
-        user.bio,
-        'level':
-        user.level,
-        'achievements':
-        [{
-            'name': a.name,
-            'description': a.description,
-            'badge_type': a.badge_type,
-            'earned_at': a.earned_at.isoformat()
-        } for a in user.achievements
-         if user.privacy_settings.get('share_achievements', True)],
-        'stats': {
-            'followers_count':
-            user.followers.count(),
-            'following_count':
-            user.following.count(),
-            'total_goals':
-            user.total_goals_completed if user.privacy_settings.get(
-                'share_goals', True) else None,
-            'total_achievements':
-            len(user.achievements) if user.privacy_settings.get(
-                'share_achievements', True) else None
-        },
-        'is_following':
-        user in current_user.following if user_id != current_user.id else None
-    })
+# Route removed as it's already defined above with better implementation
 
 
-@app.route('/api/social/settings', methods=['GET', 'PUT'])
-@login_required_if_enabled
-def manage_privacy_settings():
-    if request.method == 'PUT':
-        settings = request.get_json()
-        current_user.privacy_settings = {
-            'share_achievements': settings.get('share_achievements', True),
-            'share_goals': settings.get('share_goals', True),
-            'share_habits': settings.get('share_habits', False),
-            'profile_visible': settings.get('profile_visible', True)
-        }
-        db.session.commit()
-        return jsonify({'status': 'success'})
-
-    return jsonify(current_user.privacy_settings)
+# Route removed as it's already defined above with better implementation
 
 
 @app.route('/api/social/comment', methods=['POST'])
