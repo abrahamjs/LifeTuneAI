@@ -1,7 +1,6 @@
 from datetime import datetime
 from database import db
 from flask_login import UserMixin
-from sqlalchemy.dialects.postgresql import JSONB
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -13,32 +12,6 @@ class User(UserMixin, db.Model):
     habits = db.relationship('Habit', backref='user', lazy=True)
     voice_notes = db.relationship('VoiceNote', backref='user', lazy=True)
     analytics = db.relationship('UserAnalytics', backref='user', lazy=True)
-    # Gamification additions
-    experience_points = db.Column(db.Integer, default=0)
-    level = db.Column(db.Integer, default=1)
-    achievements = db.relationship('Achievement', backref='user', lazy=True)
-    daily_streak = db.Column(db.Integer, default=0)
-    last_login = db.Column(db.DateTime)
-    current_multiplier = db.Column(db.Float, default=1.0)
-
-class Achievement(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    name = db.Column(db.String(100), nullable=False)
-    description = db.Column(db.Text)
-    badge_type = db.Column(db.String(50))  # task_master, goal_achiever, habit_hero, etc.
-    earned_at = db.Column(db.DateTime, default=datetime.utcnow)
-    points_awarded = db.Column(db.Integer, default=0)
-
-class DailyChallenge(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    challenge_type = db.Column(db.String(50))  # task_completion, habit_streak, goal_progress
-    target_value = db.Column(db.Integer)
-    current_value = db.Column(db.Integer, default=0)
-    reward_points = db.Column(db.Integer)
-    date = db.Column(db.Date, nullable=False)
-    completed = db.Column(db.Boolean, default=False)
 
 class Goal(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -100,7 +73,6 @@ class UserAnalytics(db.Model):
     task_efficiency_score = db.Column(db.Float, default=0.0)  # 0-100
     habit_impact_score = db.Column(db.Float, default=0.0)  # 0-100
     goal_completion_prediction = db.Column(db.Float, default=0.0)  # 0-100
-    weekly_pattern = db.Column(JSONB)  # Store weekly productivity patterns
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class AIInsight(db.Model):

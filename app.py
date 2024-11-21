@@ -2,11 +2,10 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, f
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
-from models import User, Task, Goal, Habit, UserAnalytics, AIInsight, Achievement, DailyChallenge, HabitLog
+from models import User, Task, Goal, Habit, UserAnalytics, AIInsight
 from database import db
 from config.settings import AUTH_REQUIRED
 from services.analytics import AnalyticsService
-from services.gamification import GamificationService
 import os
 
 app = Flask(__name__)
@@ -226,35 +225,15 @@ def manage_task(task_id):
         
     elif request.method == 'PUT':
         data = request.get_json()
-        was_completed = task.completed
         task.title = data['title']
         task.description = data['description']
         task.priority = data['priority']
         task.due_date = datetime.strptime(data['due_date'], '%Y-%m-%d') if data['due_date'] else None
         task.completed = data['completed']
-        
-        # Process task completion for gamification
-        if not was_completed and task.completed:
+        if task.completed and not task.completed_at:
             task.completed_at = datetime.utcnow()
-            GamificationService.process_task_completion(task.user_id, task)
-            
-            # Update related goal progress
-            if task.goal_id:
-                goal = Goal.query.get(task.goal_id)
-                if goal:
-                    goal_tasks = Task.query.filter_by(goal_id=goal.id).count()
-                    completed_tasks = Task.query.filter_by(
-                        goal_id=goal.id,
-                        completed=True
-                    ).count()
-                    
-                    old_progress = goal.progress
-                    goal.progress = int((completed_tasks / goal_tasks) * 100)
-                    
-                    # Check if goal was completed
-                    if old_progress < 100 and goal.progress == 100:
-                        GamificationService.process_goal_completion(goal.user_id, goal)
-        
+        elif not task.completed:
+            task.completed_at = None
         db.session.commit()
         return jsonify({'status': 'success'})
         
@@ -270,75 +249,6 @@ def manage_task(task_id):
         'completed_at': task.completed_at.isoformat() if task.completed_at else None,
         'goal_id': task.goal_id
     })
-
-@app.route('/api/gamification/profile', methods=['GET'])
-@login_required_if_enabled
-def get_gamification_profile():
-    user_id = current_user.id if AUTH_REQUIRED else 1
-    user = User.query.get_or_404(user_id)
-    
-    # Update streak and multiplier
-    GamificationService.update_streak_and_multiplier(user_id)
-    
-    # Get achievements
-    achievements = Achievement.query.filter_by(user_id=user_id).all()
-    
-    # Get daily challenges
-    today = datetime.utcnow().date()
-    challenges = DailyChallenge.query.filter_by(
-        user_id=user_id,
-        date=today
-    ).all()
-    
-    # Calculate XP needed for next level
-    current_level = user.level
-    xp_for_next = GamificationService.get_level_threshold(current_level + 1)
-    xp_progress = (user.experience_points - GamificationService.get_level_threshold(current_level)) / (xp_for_next - GamificationService.get_level_threshold(current_level)) * 100
-    
-    return jsonify({
-        'level': user.level,
-        'experience_points': user.experience_points,
-        'xp_progress': xp_progress,
-        'xp_needed': xp_for_next - user.experience_points,
-        'daily_streak': user.daily_streak,
-        'multiplier': user.current_multiplier,
-        'achievements': [{
-            'name': a.name,
-            'description': a.description,
-            'badge_type': a.badge_type,
-            'earned_at': a.earned_at.isoformat(),
-            'points_awarded': a.points_awarded
-        } for a in achievements],
-        'daily_challenges': [{
-            'type': c.challenge_type,
-            'current': c.current_value,
-            'target': c.target_value,
-            'reward': c.reward_points,
-            'completed': c.completed
-        } for c in challenges]
-    })
-
-@app.route('/api/habits/<int:habit_id>/check-in', methods=['POST'])
-@login_required_if_enabled
-def habit_check_in(habit_id):
-    habit = Habit.query.get_or_404(habit_id)
-    if AUTH_REQUIRED and habit.user_id != current_user.id:
-        return jsonify({'error': 'Unauthorized'}), 403
-    
-    # Create habit log entry
-    log_entry = HabitLog(habit_id=habit.id)
-    db.session.add(log_entry)
-    
-    # Update streak
-    habit.current_streak += 1
-    if habit.current_streak > habit.best_streak:
-        habit.best_streak = habit.current_streak
-    
-    # Process habit streak for gamification
-    GamificationService.process_habit_streak(habit.user_id, habit)
-    
-    db.session.commit()
-    return jsonify({'status': 'success'})
 
 @app.route('/api/habits', methods=['GET', 'POST'])
 @login_required_if_enabled
@@ -426,60 +336,6 @@ def reset_analytics_data():
     AnalyticsService.generate_insights(user_id)
     
     return jsonify({'status': 'success'})
-
-# Add these new routes after the existing routes
-
-@app.route('/profile')
-@login_required_if_enabled
-def profile():
-    return render_template('profile.html')
-
-@app.route('/api/gamification/purchase-reward', methods=['POST'])
-@login_required_if_enabled
-def purchase_reward():
-    user_id = current_user.id if AUTH_REQUIRED else 1
-    user = User.query.get_or_404(user_id)
-    
-    data = request.get_json()
-    reward_id = data.get('reward_id')
-    
-    # Get reward details
-    rewards = {
-        1: {'name': 'Custom Theme', 'cost': 1000},
-        2: {'name': 'Premium Badge', 'cost': 2000},
-        3: {'name': 'Bonus Multiplier', 'cost': 3000}
-    }
-    
-    reward = rewards.get(reward_id)
-    if not reward:
-        return jsonify({'status': 'error', 'message': 'Invalid reward'}), 400
-        
-    # Check if user has enough points
-    if user.experience_points < reward['cost']:
-        return jsonify({'status': 'error', 'message': 'Not enough points'}), 400
-        
-    # Process reward
-    user.experience_points -= reward['cost']
-    
-    # Apply reward effects
-    if reward_id == 3:  # Bonus Multiplier
-        user.current_multiplier = min(user.current_multiplier * 2, 4.0)  # Cap at 4x
-        
-    db.session.commit()
-    return jsonify({'status': 'success'})
-
-@app.route('/api/gamification/leaderboard')
-@login_required_if_enabled
-def get_leaderboard():
-    # Get top users by experience points
-    top_users = User.query.order_by(User.experience_points.desc()).limit(10).all()
-    
-    return jsonify([{
-        'username': user.username,
-        'level': user.level,
-        'experience_points': user.experience_points,
-        'achievements_count': len(user.achievements)
-    } for user in top_users])
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
