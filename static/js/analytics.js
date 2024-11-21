@@ -99,10 +99,10 @@ function updateProductivityChart(data) {
             datasets: [{
                 label: 'Productivity Score',
                 data: data.productivity.productivity_scores,
-                borderColor: 'rgba(var(--bs-info-rgb), 1)',
+                borderColor: 'rgba(var(--bs-primary-rgb), 1)',
+                backgroundColor: 'rgba(var(--bs-primary-rgb), 0.1)',
                 tension: 0.4,
-                fill: true,
-                backgroundColor: 'rgba(var(--bs-info-rgb), 0.1)'
+                fill: true
             }]
         },
         options: {
@@ -110,17 +110,58 @@ function updateProductivityChart(data) {
             maintainAspectRatio: false,
             plugins: {
                 legend: {
-                    position: 'top',
-                },
-                title: {
                     display: true,
-                    text: 'Productivity Trend'
+                    position: 'top',
+                    labels: {
+                        padding: 20,
+                        font: {
+                            size: 12
+                        }
+                    }
+                },
+                tooltip: {
+                    padding: 12,
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    titleFont: {
+                        size: 14,
+                        weight: 'bold'
+                    },
+                    bodyFont: {
+                        size: 13
+                    },
+                    callbacks: {
+                        label: function(context) {
+                            return ` ${context.dataset.label}: ${context.parsed.y}%`;
+                        }
+                    }
                 }
             },
             scales: {
                 y: {
                     beginAtZero: true,
-                    max: 100
+                    max: 100,
+                    grid: {
+                        color: 'rgba(var(--bs-secondary-rgb), 0.1)',
+                        drawBorder: false
+                    },
+                    ticks: {
+                        padding: 10,
+                        font: {
+                            size: 11
+                        }
+                    }
+                },
+                x: {
+                    grid: {
+                        color: 'rgba(var(--bs-secondary-rgb), 0.05)',
+                        drawBorder: false
+                    },
+                    ticks: {
+                        padding: 10,
+                        font: {
+                            size: 11
+                        }
+                    }
                 }
             }
         }
@@ -138,14 +179,73 @@ function updateTaskCompletionChart(data) {
             datasets: [{
                 label: 'Tasks Completed',
                 data: data.productivity.tasks_completed.slice(-7),
-                backgroundColor: 'rgba(var(--bs-success-rgb), 0.5)',
-                borderColor: 'rgba(var(--bs-success-rgb), 1)',
-                borderWidth: 1
+                backgroundColor: [
+                    'rgba(var(--bs-success-rgb), 0.7)',
+                    'rgba(var(--bs-info-rgb), 0.7)',
+                    'rgba(var(--bs-warning-rgb), 0.7)',
+                    'rgba(var(--bs-danger-rgb), 0.7)',
+                    'rgba(var(--bs-primary-rgb), 0.7)',
+                ]
             }]
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        padding: 20,
+                        font: {
+                            size: 12
+                        }
+                    }
+                },
+                tooltip: {
+                    padding: 12,
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    titleFont: {
+                        size: 14,
+                        weight: 'bold'
+                    },
+                    bodyFont: {
+                        size: 13
+                    },
+                    callbacks: {
+                        label: function(context) {
+                            return ` ${context.dataset.label}: ${context.raw}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: {
+                        color: 'rgba(var(--bs-secondary-rgb), 0.1)',
+                        drawBorder: false
+                    },
+                    ticks: {
+                        padding: 10,
+                        font: {
+                            size: 11
+                        }
+                    }
+                },
+                x: {
+                    grid: {
+                        color: 'rgba(var(--bs-secondary-rgb), 0.05)',
+                        drawBorder: false
+                    },
+                    ticks: {
+                        padding: 10,
+                        font: {
+                            size: 11
+                        }
+                    }
+                }
+            }
         }
     });
 }
@@ -166,18 +266,55 @@ function updateHabitStreakChart(data) {
                     data.productivity.habit_impact.slice(-1)[0]
                 ],
                 borderColor: 'rgba(var(--bs-warning-rgb), 1)',
-                backgroundColor: 'rgba(var(--bs-warning-rgb), 0.2)'
+                backgroundColor: 'rgba(var(--bs-warning-rgb), 0.2)',
+                borderWidth: 2,
+                pointBackgroundColor: 'rgba(var(--bs-warning-rgb), 1)',
+                pointBorderColor: '#fff',
+                pointHoverBackgroundColor: '#fff',
+                pointHoverBorderColor: 'rgba(var(--bs-warning-rgb), 1)'
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        padding: 20,
+                        font: {
+                            size: 12
+                        }
+                    }
+                },
+                tooltip: {
+                    padding: 12,
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    titleFont: {
+                        size: 14,
+                        weight: 'bold'
+                    },
+                    bodyFont: {
+                        size: 13
+                    }
+                }
+            },
             scales: {
                 r: {
                     beginAtZero: true,
                     max: 100,
+                    grid: {
+                        color: 'rgba(var(--bs-secondary-rgb), 0.1)',
+                    },
                     ticks: {
-                        stepSize: 20
+                        stepSize: 20,
+                        font: {
+                            size: 11
+                        }
+                    },
+                    angleLines: {
+                        color: 'rgba(var(--bs-secondary-rgb), 0.1)',
                     }
                 }
             }
@@ -213,13 +350,59 @@ function updateAdvancedMetricsChart(data) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        padding: 20,
+                        font: {
+                            size: 12
+                        }
+                    }
+                },
+                tooltip: {
+                    padding: 12,
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    titleFont: {
+                        size: 14,
+                        weight: 'bold'
+                    },
+                    bodyFont: {
+                        size: 13
+                    },
+                    callbacks: {
+                        label: function(context) {
+                            return ` ${context.dataset.label}: ${context.parsed.y}%`;
+                        }
+                    }
+                }
+            },
             scales: {
                 y: {
                     beginAtZero: true,
                     max: 100,
-                    title: {
-                        display: true,
-                        text: 'Score'
+                    grid: {
+                        color: 'rgba(var(--bs-secondary-rgb), 0.1)',
+                        drawBorder: false
+                    },
+                    ticks: {
+                        padding: 10,
+                        font: {
+                            size: 11
+                        }
+                    }
+                },
+                x: {
+                    grid: {
+                        color: 'rgba(var(--bs-secondary-rgb), 0.05)',
+                        drawBorder: false
+                    },
+                    ticks: {
+                        padding: 10,
+                        font: {
+                            size: 11
+                        }
                     }
                 }
             }
@@ -246,21 +429,58 @@ function updatePredictionsChart(data) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        padding: 20,
+                        font: {
+                            size: 12
+                        }
+                    }
+                },
+                tooltip: {
+                    padding: 12,
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    titleFont: {
+                        size: 14,
+                        weight: 'bold'
+                    },
+                    bodyFont: {
+                        size: 13
+                    },
+                    callbacks: {
+                        label: function(context) {
+                            return `Probability: ${context.parsed.y.toFixed(1)}%`;
+                        }
+                    }
+                }
+            },
             scales: {
                 y: {
                     beginAtZero: true,
                     max: 100,
-                    title: {
-                        display: true,
-                        text: 'Probability (%)'
+                    grid: {
+                        color: 'rgba(var(--bs-secondary-rgb), 0.1)',
+                        drawBorder: false
+                    },
+                    ticks: {
+                        padding: 10,
+                        font: {
+                            size: 11
+                        }
                     }
-                }
-            },
-            plugins: {
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            return `Probability: ${context.raw.toFixed(1)}%`;
+                },
+                x: {
+                    grid: {
+                        color: 'rgba(var(--bs-secondary-rgb), 0.05)',
+                        drawBorder: false
+                    },
+                    ticks: {
+                        padding: 10,
+                        font: {
+                            size: 11
                         }
                     }
                 }

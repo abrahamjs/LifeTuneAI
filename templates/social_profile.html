@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-4">
+    <div class="row">
+        <!-- Profile Header -->
+        <div class="col-12 mb-4">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h3 id="profileUsername" class="mb-2"></h3>
+                            <p id="profileBio" class="text-muted mb-3"></p>
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="me-4">
+                                    <strong id="profileFollowers">0</strong>
+                                    <span class="text-muted">Followers</span>
+                                </div>
+                                <div class="me-4">
+                                    <strong id="profileFollowing">0</strong>
+                                    <span class="text-muted">Following</span>
+                                </div>
+                                <div>
+                                    <strong id="profileAchievements">0</strong>
+                                    <span class="text-muted">Achievements</span>
+                                </div>
+                            </div>
+                            <button id="followButton" class="btn btn-primary d-none">Follow</button>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <div class="level-badge mb-2">
+                                Level <span id="profileLevel">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Achievements -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Achievements</h5>
+                </div>
+                <div class="card-body">
+                    <div class="achievements-grid" id="profileAchievementsList">
+                        <!-- Achievements will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Recent Activity</h5>
+                </div>
+                <div class="card-body">
+                    <div id="profileActivityFeed">
+                        <!-- Activities will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Shared Content -->
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Shared Content</h5>
+                </div>
+                <div class="card-body">
+                    <div id="sharedContentList">
+                        <!-- Shared content will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Comment Modal -->
+<div class="modal fade" id="commentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Comments</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="commentsList" class="mb-3">
+                    <!-- Comments will be loaded here -->
+                </div>
+                <form id="commentForm">
+                    <div class="mb-3">
+                        <label class="form-label">Add a comment</label>
+                        <textarea class="form-control" id="commentContent" rows="3"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Post Comment</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/social-profile.js') }}"></script>
+{% endblock %}
