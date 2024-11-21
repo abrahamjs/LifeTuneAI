@@ -92,8 +92,8 @@ function showGoalDetails(goalId) {
     fetch(`/api/goals/${goalId}`)
         .then(response => response.json())
         .then(goal => {
-            const detailsContent = document.getElementById('goalDetailsContent');
-            detailsContent.innerHTML = `
+            const detailsPanel = document.getElementById('goalDetailsPanel');
+            detailsPanel.innerHTML = `
                 <div class="goal-details">
                     <div class="goal-header mb-4">
                         <h4>${goal.title}</h4>
@@ -128,7 +128,7 @@ function showGoalDetails(goalId) {
                         <h6>Related Tasks</h6>
                         <div class="list-group">
                             ${goal.tasks.map(task => `
-                                <div class="list-group-item" onclick="showTaskDetails(${task.id})">
+                                <a href="/tasks?task=${task.id}" class="list-group-item list-group-item-action">
                                     <div class="d-flex justify-content-between align-items-center">
                                         <div>
                                             <div class="fw-bold">${task.title}</div>
@@ -136,93 +136,13 @@ function showGoalDetails(goalId) {
                                         </div>
                                         <span class="badge bg-${getPriorityBadgeClass(task.priority)}">${task.priority}</span>
                                     </div>
-                                </div>
+                                </a>
                             `).join('')}
                         </div>
                     </div>
                 </div>
             `;
-            
-            // Setup delete handler
-            document.getElementById('deleteGoal').onclick = () => deleteGoal(goal.id);
-            // Setup edit handler
-            document.getElementById('editGoal').onclick = () => editGoal(goal.id);
-            
-            // Show the modal
-            const modal = new bootstrap.Modal(document.getElementById('goalDetailsModal'));
-            modal.show();
         });
-}
-
-function deleteGoal(goalId) {
-    if (confirm('Are you sure you want to delete this goal?')) {
-        fetch(`/api/goals/${goalId}`, {
-            method: 'DELETE'
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                const modal = bootstrap.Modal.getInstance(document.getElementById('goalDetailsModal'));
-                modal.hide();
-                loadGoals();
-            }
-        });
-    }
-}
-
-function editGoal(goalId) {
-    // Hide details modal
-    const detailsModal = bootstrap.Modal.getInstance(document.getElementById('goalDetailsModal'));
-    detailsModal.hide();
-    
-    // Show edit modal
-    const editModal = new bootstrap.Modal(document.getElementById('newGoalModal'));
-    editModal.show();
-    
-    // Populate form with goal data
-    fetch(`/api/goals/${goalId}`)
-        .then(response => response.json())
-        .then(goal => {
-            document.getElementById('goalTitle').value = goal.title;
-            document.getElementById('goalDescription').value = goal.description;
-            document.getElementById('goalCategory').value = goal.category;
-            document.getElementById('goalTargetDate').value = goal.target_date.split('T')[0];
-            
-            // Update save button to handle edit
-            const saveButton = document.getElementById('saveGoal');
-            saveButton.textContent = 'Update Goal';
-            saveButton.onclick = () => updateGoal(goalId);
-        });
-}
-
-function updateGoal(goalId) {
-    const data = {
-        title: document.getElementById('goalTitle').value,
-        description: document.getElementById('goalDescription').value,
-        category: document.getElementById('goalCategory').value,
-        target_date: document.getElementById('goalTargetDate').value
-    };
-    
-    fetch(`/api/goals/${goalId}`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.status === 'success') {
-            const modal = bootstrap.Modal.getInstance(document.getElementById('newGoalModal'));
-            modal.hide();
-            loadGoals();
-            
-            // Reset the save button
-            const saveButton = document.getElementById('saveGoal');
-            saveButton.textContent = 'Create Goal';
-            saveButton.onclick = null;  // Reset to default handler
-        }
-    });
 }
 
 function getCategoryBadgeClass(category) {
@@ -257,6 +177,17 @@ async function suggestTasks(title, description) {
         const suggestedTasks = document.getElementById('suggestedTasks');
         const tasksList = document.getElementById('taskSuggestionsList');
         
+        if (data.error) {
+            console.error('Error getting task suggestions:', data.error);
+            tasksList.innerHTML = `
+                <div class="alert alert-danger">
+                    Failed to generate tasks. Please try again or add tasks manually.
+                </div>
+            `;
+            suggestedTasks.classList.remove('d-none');
+            return;
+        }
+        
         if (!Array.isArray(data) || data.length === 0) {
             tasksList.innerHTML = `
                 <div class="alert alert-warning">
@@ -275,6 +206,11 @@ async function suggestTasks(title, description) {
                         <div class="fw-bold">${task.title}</div>
                         <small class="text-muted d-block">${task.description}</small>
                     </label>
+                    <div class="ms-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm edit-task">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
         `).join('');

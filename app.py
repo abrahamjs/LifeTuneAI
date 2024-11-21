@@ -82,46 +82,6 @@ def habits():
 def analytics():
     return render_template('analytics.html')
 
-@app.route('/api/goals/<int:goal_id>', methods=['GET', 'DELETE', 'PUT'])
-@login_required_if_enabled
-def manage_goal(goal_id):
-    goal = Goal.query.get_or_404(goal_id)
-    if goal.user_id != current_user.id:
-        return jsonify({'error': 'Unauthorized'}), 403
-    
-    if request.method == 'DELETE':
-        db.session.delete(goal)
-        db.session.commit()
-        return jsonify({'status': 'success'})
-    
-    elif request.method == 'PUT':
-        data = request.get_json()
-        goal.title = data['title']
-        goal.description = data['description']
-        goal.category = data['category']
-        goal.target_date = datetime.strptime(data['target_date'], '%Y-%m-%d')
-        db.session.commit()
-        return jsonify({'status': 'success'})
-    
-    # GET method
-    return jsonify({
-        'id': goal.id,
-        'title': goal.title,
-        'description': goal.description,
-        'progress': goal.progress,
-        'category': goal.category,
-        'created_at': goal.created_at.isoformat(),
-        'target_date': goal.target_date.isoformat(),
-        'tasks': [{
-            'id': task.id,
-            'title': task.title,
-            'description': task.description,
-            'priority': task.priority,
-            'completed': task.completed,
-            'due_date': task.due_date.isoformat() if task.due_date else None
-        } for task in goal.tasks]
-    })
-
 @app.route('/api/goals/suggest-tasks', methods=['POST'])
 @login_required_if_enabled
 def suggest_tasks():
@@ -154,6 +114,31 @@ def suggest_tasks():
     except Exception as e:
         print(f"Error generating tasks: {str(e)}")
         return jsonify({'error': 'Failed to generate tasks'}), 500
+
+@app.route('/api/goals/<int:goal_id>')
+@login_required_if_enabled
+def get_goal_details(goal_id):
+    goal = Goal.query.get_or_404(goal_id)
+    if goal.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    return jsonify({
+        'id': goal.id,
+        'title': goal.title,
+        'description': goal.description,
+        'progress': goal.progress,
+        'category': goal.category,
+        'created_at': goal.created_at.isoformat(),
+        'target_date': goal.target_date.isoformat(),
+        'tasks': [{
+            'id': task.id,
+            'title': task.title,
+            'description': task.description,
+            'priority': task.priority,
+            'completed': task.completed,
+            'due_date': task.due_date.isoformat() if task.due_date else None
+        } for task in goal.tasks]
+    })
 
 @app.route('/api/goals', methods=['GET', 'POST'])
 @login_required_if_enabled
@@ -256,6 +241,16 @@ def get_insights():
         'created_at': i.created_at.isoformat()
     } for i in insights])
 
+@app.route('/api/analytics/acknowledge-insight/<int:insight_id>', methods=['POST'])
+@login_required_if_enabled
+def acknowledge_insight(insight_id):
+    insight = AIInsight.query.get_or_404(insight_id)
+    if insight.user_id != current_user.id:
+        return jsonify({'status': 'error', 'message': 'Unauthorized'}), 403
+    insight.is_acknowledged = True
+    db.session.commit()
+    return jsonify({'status': 'success'})
+
 @app.route('/api/analytics/trends', methods=['GET'])
 @login_required_if_enabled
 def get_analytics_trends():
@@ -288,6 +283,32 @@ def handle_voice_notes():
         'note_type': n.note_type,
         'created_at': n.created_at.isoformat()
     } for n in voice_notes])
+
+@app.route('/api/transcribe', methods=['POST'])
+@login_required_if_enabled
+def transcribe_audio():
+    if 'audio' not in request.files:
+        return jsonify({'error': 'No audio file provided'}), 400
+    
+    audio_file = request.files['audio']
+    if not audio_file:
+        return jsonify({'error': 'Empty audio file'}), 400
+
+    try:
+        temp_path = f"/tmp/{datetime.now().timestamp()}.wav"
+        audio_file.save(temp_path)
+        
+        with open(temp_path, 'rb') as audio:
+            response = openai.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio
+            )
+        
+        os.remove(temp_path)
+        return jsonify({'text': response.text})
+    except Exception as e:
+        print(f"Whisper API error: {str(e)}")
+        return jsonify({'error': 'Speech recognition failed. Please try again.'}), 500
 
 @app.route('/api/reset-data', methods=['POST'])
 @login_required_if_enabled
