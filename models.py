@@ -20,22 +20,7 @@ class User(UserMixin, db.Model):
     daily_streak = db.Column(db.Integer, default=0)
     last_login = db.Column(db.DateTime)
     current_multiplier = db.Column(db.Float, default=1.0)
-    # Social features
-    followers = db.relationship('User',
-        secondary='user_followers',
-        primaryjoin='User.id==user_followers.c.followed_id',
-        secondaryjoin='User.id==user_followers.c.follower_id',
-        backref=db.backref('following', lazy='dynamic'),
-        lazy='dynamic'
-    )
-    bio = db.Column(db.Text)
-    privacy_settings = db.Column(JSONB, default={
-        'share_achievements': True,
-        'share_goals': True,
-        'share_habits': False,
-        'profile_visible': True
-    })
-    # Existing attributes
+    # New gamification attributes
     total_tasks_completed = db.Column(db.Integer, default=0)
     total_goals_completed = db.Column(db.Integer, default=0)
     longest_streak = db.Column(db.Integer, default=0)
@@ -44,39 +29,6 @@ class User(UserMixin, db.Model):
     active_badges = db.Column(JSONB, default=list)
     seasonal_points = db.Column(db.Integer, default=0)
     unlocked_rewards = db.Column(JSONB, default=list)
-
-# Social Models
-user_followers = db.Table('user_followers',
-    db.Column('follower_id', db.Integer, db.ForeignKey('user.id'), primary_key=True),
-    db.Column('followed_id', db.Integer, db.ForeignKey('user.id'), primary_key=True),
-    db.Column('created_at', db.DateTime, default=datetime.utcnow)
-)
-
-class SharedContent(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    content_type = db.Column(db.String(50))  # 'goal', 'achievement', 'habit'
-    content_id = db.Column(db.Integer)
-    shared_at = db.Column(db.DateTime, default=datetime.utcnow)
-    privacy_level = db.Column(db.String(20), default='public')  # public, followers, private
-    likes = db.Column(db.Integer, default=0)
-    comments_enabled = db.Column(db.Boolean, default=True)
-
-class ActivityFeed(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    activity_type = db.Column(db.String(50))  # achievement_earned, goal_completed, habit_streak, following_new_user
-    content = db.Column(JSONB)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    privacy_level = db.Column(db.String(20), default='public')
-
-class Comment(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    shared_content_id = db.Column(db.Integer, db.ForeignKey('shared_content.id'), nullable=False)
-    content = db.Column(db.Text, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    edited_at = db.Column(db.DateTime)
 
 class Achievement(db.Model):
     id = db.Column(db.Integer, primary_key=True)
