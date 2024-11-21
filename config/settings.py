@@ -1,2 +1,2 @@
 # Authentication Settings
-AUTH_REQUIRED = False  # Set to True to enable authentication
+AUTH_REQUIRED = True  # Set to True to enable authentication
