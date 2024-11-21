@@ -1,46 +1,20 @@
 from datetime import datetime, timedelta
 from models import (
     User, Achievement, DailyChallenge, Task, Goal, Habit,
-    SeasonalEvent, EventParticipants, db
+    db
 )
 
 class GamificationService:
-    # Enhanced XP Constants
-    TASK_COMPLETION_XP = {
-        'normal': 50,
-        'important': 75,
-        'urgent': 100
-    }
-    GOAL_COMPLETION_XP = {
-        'small': 200,
-        'medium': 400,
-        'large': 600
-    }
-    HABIT_STREAK_XP = {
-        'base': 25,
-        'bonus_per_day': 5,
-        'max_bonus': 100
-    }
-    CHALLENGE_XP = {
-        'easy': 100,
-        'medium': 200,
-        'hard': 300
-    }
+    # XP Constants
+    TASK_COMPLETION_XP = 50
+    GOAL_COMPLETION_XP = 200
+    HABIT_STREAK_XP = 25
+    DAILY_CHALLENGE_XP = 100
     
-    # Achievement Categories
-    ACHIEVEMENT_CATEGORIES = {
-        'productivity': ['task_master', 'goal_achiever', 'habit_hero'],
-        'social': ['team_player', 'mentor', 'community_leader'],
-        'seasonal': ['spring_champion', 'summer_warrior', 'fall_achiever', 'winter_master'],
-        'special': ['early_bird', 'night_owl', 'weekend_warrior']
-    }
-    
+    # Level thresholds (XP needed for each level)
     @staticmethod
     def get_level_threshold(level):
-        # Enhanced leveling curve
-        base_xp = 100
-        scaling_factor = 1.5
-        return int(base_xp * (level ** scaling_factor))
+        return int(100 * (level ** 1.5))
     
     @staticmethod
     def calculate_level(xp):
@@ -50,208 +24,231 @@ class GamificationService:
         return level - 1
     
     @staticmethod
-    def process_task_completion(user_id, task):
-        # Award XP based on task priority
-        xp_amount = GamificationService.TASK_COMPLETION_XP[task.priority]
-        
-        # Get user for streak calculation
-        user = User.query.get(user_id)
-        if not user:
-            return
-            
-        # Apply streak bonus
-        streak_bonus = min(user.daily_streak * 0.05, 0.5)  # Max 50% bonus
-        
-        # Award XP with streak bonus
-        GamificationService.award_experience(
-            user_id, 
-            xp_amount, 
-            multiplier=(1 + streak_bonus)
-        )
-        
-        # Update total tasks completed
-        user.total_tasks_completed += 1
-        
-        # Check for achievements
-        GamificationService.check_task_achievements(user)
-        
-        db.session.commit()
-    
-    @staticmethod
-    def process_goal_completion(user_id, goal):
-        # Determine goal size based on number of tasks
-        tasks_count = len(goal.tasks)
-        if tasks_count <= 3:
-            size = 'small'
-        elif tasks_count <= 7:
-            size = 'medium'
-        else:
-            size = 'large'
-            
-        # Award XP
-        xp_amount = GamificationService.GOAL_COMPLETION_XP[size]
-        GamificationService.award_experience(user_id, xp_amount)
-        
-        # Update user stats
-        user = User.query.get(user_id)
-        user.total_goals_completed += 1
-        
-        # Check for achievements
-        GamificationService.check_goal_achievements(user)
-        
-        db.session.commit()
-    
-    @staticmethod
-    def process_habit_streak(user_id, habit):
-        # Calculate streak bonus
-        streak_bonus = min(
-            habit.current_streak * GamificationService.HABIT_STREAK_XP['bonus_per_day'],
-            GamificationService.HABIT_STREAK_XP['max_bonus']
-        )
-        
-        # Award XP with streak bonus
-        xp_amount = GamificationService.HABIT_STREAK_XP['base'] + streak_bonus
-        GamificationService.award_experience(user_id, xp_amount)
-        
-        # Update user stats if best streak
-        if habit.current_streak > habit.best_streak:
-            user = User.query.get(user_id)
-            user.longest_streak = max(user.longest_streak, habit.current_streak)
-            
-            # Check for streak achievements
-            GamificationService.check_streak_achievements(user, habit)
-            
-        db.session.commit()
-    
-    @staticmethod
-    def check_task_achievements(user):
-        achievements = [
-            (10, "Task Beginner", "Complete 10 tasks", "task_master", "common"),
-            (50, "Task Expert", "Complete 50 tasks", "task_master", "rare"),
-            (100, "Task Master", "Complete 100 tasks", "task_master", "epic"),
-            (500, "Task Legend", "Complete 500 tasks", "task_master", "legendary")
-        ]
-        
-        for count, name, desc, badge, rarity in achievements:
-            if user.total_tasks_completed >= count:
-                GamificationService.award_achievement(
-                    user.id, name, desc, badge,
-                    bonus_xp=count,
-                    rarity=rarity,
-                    category='productivity'
-                )
-    
-    @staticmethod
-    def check_goal_achievements(user):
-        achievements = [
-            (5, "Goal Setter", "Complete 5 goals", "goal_achiever", "common"),
-            (20, "Goal Crusher", "Complete 20 goals", "goal_achiever", "rare"),
-            (50, "Goal Master", "Complete 50 goals", "goal_achiever", "epic"),
-            (100, "Goal Legend", "Complete 100 goals", "goal_achiever", "legendary")
-        ]
-        
-        for count, name, desc, badge, rarity in achievements:
-            if user.total_goals_completed >= count:
-                GamificationService.award_achievement(
-                    user.id, name, desc, badge,
-                    bonus_xp=count*2,
-                    rarity=rarity,
-                    category='productivity'
-                )
-    
-    @staticmethod
-    def check_streak_achievements(user, habit):
-        achievements = [
-            (7, "Habit Builder", "Maintain a 7-day streak", "habit_hero", "common"),
-            (30, "Habit Master", "Maintain a 30-day streak", "habit_hero", "rare"),
-            (100, "Habit Legend", "Maintain a 100-day streak", "habit_hero", "epic"),
-            (365, "Habit God", "Maintain a 365-day streak", "habit_hero", "legendary")
-        ]
-        
-        for days, name, desc, badge, rarity in achievements:
-            if habit.current_streak >= days:
-                GamificationService.award_achievement(
-                    user.id, name, desc, badge,
-                    bonus_xp=days,
-                    rarity=rarity,
-                    category='productivity'
-                )
-    
-    @staticmethod
-    def update_streak_and_multiplier(user_id):
-        user = User.query.get(user_id)
-        if not user:
-            return
-            
-        # Check if user was active today
-        today = datetime.utcnow().date()
-        if user.last_login and user.last_login.date() == today:
-            return
-            
-        # Check if streak should be maintained or reset
-        if user.last_login and (today - user.last_login.date()).days == 1:
-            # Maintain streak
-            user.daily_streak += 1
-            # Update longest streak if applicable
-            user.longest_streak = max(user.longest_streak, user.daily_streak)
-        else:
-            # Reset streak if more than one day has passed
-            user.daily_streak = 1
-            
-        # Update multiplier based on streak
-        user.current_multiplier = min(1.0 + (user.daily_streak * 0.1), 2.0)  # Cap at 2x
-        
-        # Update last login
-        user.last_login = datetime.utcnow()
-        db.session.commit()
-    
-    @staticmethod
-    def award_experience(user_id, xp_amount, multiplier=1.0, category=None):
+    def award_experience(user_id, xp_amount, multiplier=1.0):
         user = User.query.get(user_id)
         if not user:
             return False
             
-        # Apply streak bonus and seasonal multipliers
-        streak_bonus = min(user.daily_streak * 0.05, 0.5)  # Max 50% bonus from streak
-        seasonal_multiplier = GamificationService.get_seasonal_multiplier(user_id)
-        
-        final_multiplier = multiplier * (1 + streak_bonus) * seasonal_multiplier
-        xp_gained = int(xp_amount * final_multiplier)
-        
-        # Update user XP and check for level up
-        old_level = user.level
+        # Apply multiplier to XP gain
+        xp_gained = int(xp_amount * multiplier)
         user.experience_points += xp_gained
+        
+        # Check for level up
         new_level = GamificationService.calculate_level(user.experience_points)
-        
-        if new_level > old_level:
+        if new_level > user.level:
             user.level = new_level
-            GamificationService.process_level_up(user_id, new_level)
-        
-        # Update seasonal points if applicable
-        if category == 'seasonal':
-            user.seasonal_points += xp_gained
+            # Award level-up achievement
+            GamificationService.award_achievement(
+                user_id,
+                f"Reached Level {new_level}",
+                f"Congratulations! You've reached level {new_level}",
+                "level_up",
+                bonus_xp=50
+            )
         
         db.session.commit()
         return True
     
     @staticmethod
-    def get_seasonal_multiplier(user_id):
-        current_event = SeasonalEvent.query.filter(
-            SeasonalEvent.start_date <= datetime.utcnow(),
-            SeasonalEvent.end_date >= datetime.utcnow(),
-            SeasonalEvent.active == True
-        ).first()
-        
-        if not current_event:
-            return 1.0
-            
-        participant = EventParticipants.query.filter_by(
+    def award_achievement(user_id, name, description, badge_type, bonus_xp=0):
+        # Check if achievement already earned
+        existing = Achievement.query.filter_by(
             user_id=user_id,
-            event_id=current_event.id
+            name=name
         ).first()
         
-        if not participant:
-            return 1.0
+        if existing:
+            return False
             
-        # Calculate bonus based on participation level
-        return 1.0 + (min(participant.points / 1000, 0.5))  # Max 50% bonus
+        achievement = Achievement(
+            user_id=user_id,
+            name=name,
+            description=description,
+            badge_type=badge_type,
+            points_awarded=bonus_xp
+        )
+        
+        db.session.add(achievement)
+        if bonus_xp > 0:
+            GamificationService.award_experience(user_id, bonus_xp)
+            
+        db.session.commit()
+        return True
+    
+    @staticmethod
+    def process_task_completion(user_id, task):
+        # Award base XP for task completion
+        user = User.query.get(user_id)
+        if not user:
+            return False
+            
+        xp = GamificationService.TASK_COMPLETION_XP
+        
+        # Bonus XP for priority tasks
+        if task.priority == 'urgent':
+            xp *= 1.5
+        elif task.priority == 'important':
+            xp *= 1.2
+            
+        # Award XP with user's current multiplier
+        GamificationService.award_experience(user_id, xp, user.current_multiplier)
+        
+        # Check for achievements
+        tasks_completed = Task.query.filter_by(
+            user_id=user_id,
+            completed=True
+        ).count()
+        
+        # Task milestone achievements
+        milestones = {
+            10: ("Task Novice", "Complete 10 tasks"),
+            50: ("Task Expert", "Complete 50 tasks"),
+            100: ("Task Master", "Complete 100 tasks"),
+            500: ("Task Legend", "Complete 500 tasks")
+        }
+        
+        for count, (name, desc) in milestones.items():
+            if tasks_completed >= count:
+                GamificationService.award_achievement(
+                    user_id, name, desc, "task_master", bonus_xp=50
+                )
+        
+        return True
+    
+    @staticmethod
+    def process_goal_completion(user_id, goal):
+        user = User.query.get(user_id)
+        if not user:
+            return False
+            
+        # Award XP for goal completion
+        GamificationService.award_experience(
+            user_id,
+            GamificationService.GOAL_COMPLETION_XP,
+            user.current_multiplier
+        )
+        
+        # Check for goal-related achievements
+        goals_completed = Goal.query.filter_by(
+            user_id=user_id,
+            progress=100
+        ).count()
+        
+        # Goal milestone achievements
+        milestones = {
+            5: ("Goal Setter", "Complete 5 goals"),
+            25: ("Goal Crusher", "Complete 25 goals"),
+            50: ("Goal Master", "Complete 50 goals")
+        }
+        
+        for count, (name, desc) in milestones.items():
+            if goals_completed >= count:
+                GamificationService.award_achievement(
+                    user_id, name, desc, "goal_achiever", bonus_xp=100
+                )
+        
+        return True
+    
+    @staticmethod
+    def process_habit_streak(user_id, habit):
+        user = User.query.get(user_id)
+        if not user:
+            return False
+            
+        # Award XP for maintaining streak
+        streak_xp = GamificationService.HABIT_STREAK_XP * (1 + (habit.current_streak * 0.1))
+        GamificationService.award_experience(
+            user_id,
+            int(streak_xp),
+            user.current_multiplier
+        )
+        
+        # Streak milestone achievements
+        milestones = {
+            7: ("Week Warrior", "Maintain a 7-day streak"),
+            30: ("Monthly Master", "Maintain a 30-day streak"),
+            100: ("Habit Hero", "Maintain a 100-day streak")
+        }
+        
+        for days, (name, desc) in milestones.items():
+            if habit.current_streak >= days:
+                GamificationService.award_achievement(
+                    user_id, name, desc, "habit_hero", bonus_xp=75
+                )
+        
+        return True
+    
+    @staticmethod
+    def generate_daily_challenges(user_id):
+        """Generate new daily challenges for a user"""
+        today = datetime.utcnow().date()
+        
+        # Clear old uncompleted challenges
+        DailyChallenge.query.filter_by(
+            user_id=user_id,
+            completed=False
+        ).delete()
+        
+        # Generate new challenges
+        challenges = [
+            {
+                'type': 'task_completion',
+                'target': 3,
+                'reward': 100,
+                'description': "Complete 3 tasks today"
+            },
+            {
+                'type': 'habit_streak',
+                'target': 1,
+                'reward': 50,
+                'description': "Maintain a habit streak"
+            },
+            {
+                'type': 'goal_progress',
+                'target': 10,
+                'reward': 75,
+                'description': "Make 10% progress on any goal"
+            }
+        ]
+        
+        for challenge in challenges:
+            new_challenge = DailyChallenge(
+                user_id=user_id,
+                challenge_type=challenge['type'],
+                target_value=challenge['target'],
+                reward_points=challenge['reward'],
+                date=today
+            )
+            db.session.add(new_challenge)
+        
+        db.session.commit()
+    
+    @staticmethod
+    def update_streak_and_multiplier(user_id):
+        """Update user's daily streak and multiplier"""
+        user = User.query.get(user_id)
+        if not user:
+            return False
+            
+        today = datetime.utcnow()
+        
+        # Check if user logged in today
+        if not user.last_login or user.last_login.date() < today.date():
+            # If last login was yesterday, increment streak
+            if user.last_login and user.last_login.date() == today.date() - timedelta(days=1):
+                user.daily_streak += 1
+                # Update multiplier (caps at 2.0)
+                user.current_multiplier = min(1 + (user.daily_streak * 0.1), 2.0)
+            else:
+                # Reset streak if missed a day
+                user.daily_streak = 1
+                user.current_multiplier = 1.0
+            
+            user.last_login = today
+            
+            # Generate new daily challenges
+            GamificationService.generate_daily_challenges(user_id)
+            
+            db.session.commit()
+        
+        return True
