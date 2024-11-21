@@ -20,6 +20,7 @@ function loadProfile() {
                 updateProfileInfo(data);
                 updateAchievements(data.achievements || []);
                 updateChallenges(data.daily_challenges || []);
+                updateRewardsShop(data);
                 checkForLevelUp(data);
             } catch (error) {
                 console.error('Error updating profile:', error);
@@ -41,6 +42,7 @@ function setDefaultProfileValues() {
     document.getElementById('xpText').textContent = 'XP: 0 / 100';
     document.getElementById('streakCount').textContent = '0';
     document.getElementById('multiplier').textContent = '1.0';
+    document.getElementById('availablePoints').textContent = 'Points: 0';
     document.getElementById('achievementsList').innerHTML = '<p class="text-muted">No achievements available</p>';
     document.getElementById('challengesList').innerHTML = '<p class="text-muted">No active challenges</p>';
 }
@@ -52,6 +54,7 @@ function updateProfileInfo(data) {
         document.getElementById('xpText').textContent = `XP: ${data.experience_points || 0} / ${(data.experience_points || 0) + (data.xp_needed || 100)}`;
         document.getElementById('streakCount').textContent = data.daily_streak || 0;
         document.getElementById('multiplier').textContent = (data.multiplier || 1.0).toFixed(1);
+        document.getElementById('availablePoints').textContent = `Points: ${data.experience_points || 0}`;
     } catch (error) {
         console.error('Error updating profile info:', error);
         setDefaultProfileValues();
@@ -116,6 +119,51 @@ function updateChallenges(challenges) {
     }
 }
 
+function updateRewardsShop(data) {
+    try {
+        const container = document.getElementById('rewardsList');
+        const rewards = getAvailableRewards();
+        const userPoints = data.experience_points || 0;
+
+        container.innerHTML = rewards.map(reward => `
+            <div class="reward-card ${userPoints >= reward.cost ? '' : 'locked'}"
+                 onclick="${userPoints >= reward.cost ? `purchaseReward(${reward.id})` : 'showNotification("Not enough points!", "error")'}">
+                <div class="reward-icon mb-2">
+                    <i class="bi ${reward.icon}"></i>
+                </div>
+                <h6>${reward.name}</h6>
+                <p class="text-muted mb-2">${reward.description}</p>
+                <span class="reward-cost">
+                    <i class="bi bi-coin"></i> ${reward.cost}
+                </span>
+                <span class="reward-rarity">${reward.rarity}</span>
+            </div>
+        `).join('');
+    } catch (error) {
+        console.error('Error updating rewards shop:', error);
+        document.getElementById('rewardsList').innerHTML = '<p class="text-muted">Error loading rewards</p>';
+    }
+}
+
+function purchaseReward(rewardId) {
+    fetch('/api/gamification/purchase-reward', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ reward_id: rewardId })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showNotification('Reward Purchased!', 'success');
+            loadProfile();
+        } else {
+            showNotification('Not enough points!', 'error');
+        }
+    });
+}
+
 function checkForLevelUp(data) {
     const oldLevel = parseInt(localStorage.getItem('currentLevel') || '0');
     if (data.level > oldLevel) {
@@ -138,7 +186,8 @@ function showLevelUpModal(level) {
 function getLevelRewards(level) {
     const rewards = [
         { icon: 'bi-star-fill', description: 'New achievement slots unlocked' },
-        { icon: 'bi-graph-up', description: 'Increased XP gain' }
+        { icon: 'bi-graph-up', description: 'Increased XP gain' },
+        { icon: 'bi-gift', description: 'Special reward available in shop' }
     ];
     return rewards;
 }
@@ -212,4 +261,49 @@ function getChallengeTitle(type) {
         'goal_progress': 'Make Progress on Goals'
     };
     return titles[type] || 'Challenge';
+}
+
+function getAvailableRewards() {
+    return [
+        {
+            id: 1,
+            name: "Custom Theme",
+            description: "Unlock a custom color theme for your dashboard",
+            cost: 1000,
+            icon: "bi-palette",
+            rarity: "common"
+        },
+        {
+            id: 2,
+            name: "Premium Badge",
+            description: "Show off your dedication with a special profile badge",
+            cost: 2000,
+            icon: "bi-award",
+            rarity: "rare"
+        },
+        {
+            id: 3,
+            name: "Bonus Multiplier",
+            description: "Get 2x XP for the next 24 hours",
+            cost: 3000,
+            icon: "bi-stars",
+            rarity: "rare"
+        },
+        {
+            id: 4,
+            name: "Exclusive Title",
+            description: "Unlock a special title for your profile",
+            cost: 5000,
+            icon: "bi-trophy",
+            rarity: "epic"
+        },
+        {
+            id: 5,
+            name: "Season Pass",
+            description: "Get exclusive access to seasonal rewards",
+            cost: 10000,
+            icon: "bi-ticket-perforated",
+            rarity: "legendary"
+        }
+    ];
 }
