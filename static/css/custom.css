@@ -1,0 +1,425 @@
+/* Custom styles to complement Bootstrap theme */
+
+/* Dashboard cards */
+.card {
+    border: none;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Progress bars */
+.progress {
+    height: 8px;
+    border-radius: 4px;
+}
+
+/* Task items */
+.task-item {
+    padding: 0.5rem;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.task-item:hover {
+    background-color: rgba(var(--bs-secondary-rgb), 0.1);
+}
+
+/* Pomodoro Timer */
+#pomodoroTimer .display-4 {
+    font-family: monospace;
+    font-weight: 600;
+}
+
+/* Habit streaks */
+.habit-streak {
+    padding: 1rem;
+    border-radius: 4px;
+    background-color: rgba(var(--bs-dark-rgb), 0.2);
+}
+
+/* Quotes */
+.quote {
+    font-size: 0.9rem;
+    color: var(--bs-secondary);
+}
+
+/* Greeting text */
+.greeting {
+    font-size: 1.8rem;
+    font-weight: 600;
+    color: var(--bs-primary);
+}
+
+/* Badge customization */
+.badge {
+    font-weight: 500;
+    padding: 0.4em 0.8em;
+}
+
+/* Chart containers */
+canvas {
+    max-height: 300px;
+}
+
+/* Voice Assistant Styles */
+#voiceButton.listening {
+    background-color: var(--bs-danger);
+    border-color: var(--bs-danger);
+    color: white;
+    animation: pulse 1.5s infinite;
+}
+
+#voiceText {
+    min-height: 60px;
+    font-size: 1.1rem;
+    font-style: italic;
+}
+
+/* Voice Listening Animation */
+.voice-listening-animation {
+    position: relative;
+    width: 50px;
+    height: 50px;
+    margin: 0 auto;
+}
+
+.voice-listening-animation::before {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: rgba(var(--bs-info-rgb), 0.3);
+    animation: pulse-ring 1.25s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+
+.voice-listening-animation::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: var(--bs-info);
+    animation: pulse-dot 1.25s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
+}
+
+@keyframes pulse-ring {
+    0% {
+        transform: scale(0.33);
+    }
+    80%, 100% {
+        opacity: 0;
+    }
+}
+
+@keyframes pulse-dot {
+    0% {
+        transform: scale(0.8);
+    }
+    50% {
+        transform: scale(1);
+    }
+    100% {
+        transform: scale(0.8);
+    }
+}
+
+.voice-error {
+    color: var(--bs-danger);
+    margin-top: 10px;
+    padding: 8px;
+    border-radius: 4px;
+    background: rgba(var(--bs-danger-rgb), 0.1);
+    display: none;
+}
+
+.voice-error.show {
+    display: block;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Goals Grid */
+.goals-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+}
+
+.goal-card {
+    background: rgba(var(--bs-dark-rgb), 0.2);
+    border-radius: 8px;
+    padding: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.goal-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    background: rgba(var(--bs-primary-rgb), 0.1);
+}
+
+.goal-details {
+    background: rgba(var(--bs-dark-rgb), 0.1);
+    border-radius: 8px;
+    padding: 1.5rem;
+}
+
+.goal-header h4 {
+    margin-bottom: 0.5rem;
+    color: var(--bs-primary);
+}
+
+.goal-dates {
+    background: rgba(var(--bs-dark-rgb), 0.2);
+    border-radius: 6px;
+    padding: 1rem;
+}
+
+.goal-tasks .list-group-item {
+    background: transparent;
+    border: 1px solid rgba(var(--bs-secondary-rgb), 0.2);
+    margin-bottom: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.goal-tasks .list-group-item:hover {
+    background: rgba(var(--bs-primary-rgb), 0.1);
+    border-color: rgba(var(--bs-primary-rgb), 0.2);
+}
+
+/* Profile Page Styles */
+.profile-card {
+    background: rgba(var(--bs-dark-rgb), 0.2);
+    border: none;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+}
+
+.level-badge {
+    width: 100px;
+    height: 100px;
+    background: rgba(var(--bs-primary-rgb), 0.1);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    border: 3px solid var(--bs-primary);
+}
+
+.xp-progress {
+    max-width: 300px;
+    margin: 0 auto;
+}
+
+.streak-info {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    margin-top: 1rem;
+}
+
+.streak-count, .multiplier {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Achievements Grid */
+.achievements-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 1rem;
+}
+
+.achievement-card {
+    background: rgba(var(--bs-dark-rgb), 0.2);
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.achievement-card:hover {
+    transform: translateY(-2px);
+    background: rgba(var(--bs-primary-rgb), 0.1);
+}
+
+.achievement-card.locked {
+    opacity: 0.5;
+    filter: grayscale(1);
+}
+
+.achievement-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Daily Challenges */
+.challenges-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+}
+
+.challenge-card {
+    background: rgba(var(--bs-dark-rgb), 0.1);
+    border-radius: 8px;
+    padding: 1rem;
+    transition: all 0.3s ease;
+}
+
+.challenge-card:hover {
+    background: rgba(var(--bs-primary-rgb), 0.05);
+}
+
+.challenge-progress {
+    height: 8px;
+    margin-top: 0.5rem;
+}
+
+/* Toast Notifications */
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1050;
+}
+
+.achievement-toast {
+    background: rgba(var(--bs-dark-rgb), 0.95);
+    border-left: 4px solid var(--bs-primary);
+}
+
+/* Leaderboard Styles */
+.leaderboard-card {
+    background: rgba(var(--bs-dark-rgb), 0.1);
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+    transition: all 0.3s ease;
+}
+
+.leaderboard-card:hover {
+    background: rgba(var(--bs-primary-rgb), 0.1);
+}
+
+.leaderboard-position {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
+
+.position-1 { background: gold; color: black; }
+.position-2 { background: silver; color: black; }
+.position-3 { background: #cd7f32; color: black; }
+
+/* Animations */
+@keyframes levelUp {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+
+@keyframes achievementUnlock {
+    0% { transform: scale(0.5); opacity: 0; }
+    70% { transform: scale(1.1); }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes challengeComplete {
+    0% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+    100% { transform: translateY(0); }
+}
+
+.level-up-animation i {
+    animation: levelUp 1s ease-out;
+}
+
+.achievement-animation i {
+    animation: achievementUnlock 0.8s ease-out;
+}
+
+.challenge-complete {
+    animation: challengeComplete 0.5s ease-out;
+}
+
+/* Social Feed Styles */
+.activity-filters {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bs-dark);
+    padding: 1rem 0;
+}
+
+.activity-card.new-activity {
+    opacity: 0;
+    transform: translateY(-20px);
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.sentinel {
+    height: 20px;
+    margin-top: 1rem;
+}
+
+/* Social Interaction Animations */
+.like-animation {
+    animation: likeScale 0.3s ease-in-out;
+}
+
+@keyframes likeScale {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+
+.follow-button {
+    transition: all 0.3s ease;
+}
+
+.follow-button.following {
+    background-color: var(--bs-success);
+    border-color: var(--bs-success);
+}
+
+.follow-button.following:hover {
+    background-color: var(--bs-danger);
+    border-color: var(--bs-danger);
+}
+
+.follow-button.following:hover .follow-text::before {
+    content: "Unfollow";
+}
+
+.follow-button.following .follow-text::before {
+    content: "Following";
+}
+</new_str>

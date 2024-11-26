@@ -1,0 +1,31 @@
+# Cloud Build configuration to build and deploy the application to Cloud Run
+
+steps:
+  # Step 1: Build the Docker image
+  - name: "gcr.io/cloud-builders/docker"
+    args: ["build", "-t", "gcr.io/$PROJECT_ID/lifetuneai", "."]
+
+  # Step 2: Push the Docker image to Google Container Registry
+  - name: "gcr.io/cloud-builders/docker"
+    args: ["push", "gcr.io/$PROJECT_ID/lifetuneai"]
+
+  # Step 3: Deploy the application to Cloud Run
+  - name: "gcr.io/cloud-builders/gcloud"
+    args:
+      - "run"
+      - "deploy"
+      - "lifetuneai"
+      - "--image"
+      - "gcr.io/$PROJECT_ID/lifetuneai"
+      - "--region"
+      - "us-central1"
+      - "--platform"
+      - "managed"
+      - "--allow-unauthenticated"
+
+# Specify the Docker image that gets built
+images:
+  - "gcr.io/$PROJECT_ID/lifetuneai"
+
+options:
+  logging: CLOUD_LOGGING_ONLY
