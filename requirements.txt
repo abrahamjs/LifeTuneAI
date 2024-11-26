@@ -8,7 +8,6 @@ alabaster==0.7.12
 anaconda-catalogs==0.1.0
 anaconda-client==1.2.2
 anaconda-cloud-auth==0.1.0
-anaconda-navigator==2.1.1
 anaconda-project==0.10.1
 anyio==3.3.4
 appdirs==1.4.4
