@@ -6,7 +6,7 @@ aiosignal==1.2.0
 aiosqlite==0.17.0
 alabaster==0.7.12
 anaconda-catalogs==0.1.0
-anaconda-client==1.10.0
+anaconda-client==
 anaconda-cloud-auth==0.1.0
 anaconda-navigator==2.1.1
 anaconda-project==0.10.1
