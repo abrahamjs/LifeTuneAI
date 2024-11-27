@@ -35,7 +35,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 const modal = bootstrap.Modal.getInstance(document.getElementById('newTaskModal'));
                 modal.hide();
                 loadTasks();
+                // Reset form
+                document.getElementById('newTaskForm').reset();
+            } else {
+                showError('Failed to create task');
             }
+        })
+        .catch(error => {
+            console.error('Error creating task:', error);
+            showError('An error occurred while creating the task');
         });
     });
 
@@ -67,20 +75,34 @@ function loadTasks(filter = 'all') {
 
             const tasksList = document.getElementById('tasksList');
             tasksList.innerHTML = tasks.map(task => `
-                <div class="task-item mb-2 d-flex align-items-center" onclick="showTaskDetails(${task.id})">
+                <div class="task-item mb-2 d-flex align-items-center">
                     <input type="checkbox" class="form-check-input me-2" 
                            ${task.completed ? 'checked' : ''} 
-                           onclick="event.stopPropagation(); toggleTaskCompletion(${task.id})">
-                    <span class="task-title ${task.completed ? 'text-muted text-decoration-line-through' : ''}">${task.title}</span>
+                           onclick="toggleTaskCompletion(${task.id}, event)">
+                    <span class="task-title ${task.completed ? 'text-muted text-decoration-line-through' : ''}"
+                          onclick="showTaskDetails(${task.id}, event)">${task.title}</span>
                     <span class="badge ms-auto ${getPriorityBadgeClass(task.priority)}">${task.priority}</span>
                 </div>
             `).join('');
+        })
+        .catch(error => {
+            console.error('Error loading tasks:', error);
+            showError('Failed to load tasks');
         });
 }
 
-function showTaskDetails(taskId) {
+function showTaskDetails(taskId, event) {
+    if (event) {
+        event.stopPropagation();
+    }
+
     fetch(`/api/tasks/${taskId}`)
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Task not found');
+            }
+            return response.json();
+        })
         .then(task => {
             const detailsContent = document.getElementById('taskDetailsContent');
             detailsContent.innerHTML = `
@@ -98,7 +120,7 @@ function showTaskDetails(taskId) {
                             </div>
                             <div class="col-6">
                                 <small class="text-muted">Due Date</small>
-                                <div>${new Date(task.due_date).toLocaleDateString()}</div>
+                                <div>${task.due_date ? new Date(task.due_date).toLocaleDateString() : 'No due date'}</div>
                             </div>
                         </div>
                     </div>
@@ -107,7 +129,18 @@ function showTaskDetails(taskId) {
                         <span class="badge bg-${task.completed ? 'success' : 'warning'}">
                             ${task.completed ? 'Completed' : 'Pending'}
                         </span>
+                        ${task.completed && task.completed_at ? 
+                            `<small class="text-muted d-block mt-2">Completed on: ${new Date(task.completed_at).toLocaleString()}</small>` 
+                            : ''}
                     </div>
+                    ${task.goal_id ? `
+                        <div class="task-goal mb-4">
+                            <h6>Associated Goal</h6>
+                            <a href="/goals#${task.goal_id}" class="text-decoration-none">
+                                <span class="badge bg-primary">${task.goal_title || 'View Goal'}</span>
+                            </a>
+                        </div>
+                    ` : ''}
                 </div>
             `;
 
@@ -118,6 +151,10 @@ function showTaskDetails(taskId) {
             // Show the modal
             const modal = new bootstrap.Modal(document.getElementById('taskDetailsModal'));
             modal.show();
+        })
+        .catch(error => {
+            console.error('Error loading task details:', error);
+            showError('Failed to load task details');
         });
 }
 
@@ -132,17 +169,26 @@ function editTask(taskId) {
 
     // Populate form with task data
     fetch(`/api/tasks/${taskId}`)
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Task not found');
+            }
+            return response.json();
+        })
         .then(task => {
             document.getElementById('taskTitle').value = task.title;
-            document.getElementById('taskDescription').value = task.description;
+            document.getElementById('taskDescription').value = task.description || '';
             document.getElementById('taskPriority').value = task.priority;
-            document.getElementById('taskDueDate').value = task.due_date.split('T')[0];
+            document.getElementById('taskDueDate').value = task.due_date ? task.due_date.split('T')[0] : '';
 
             // Update save button to handle edit
             const saveButton = document.getElementById('saveTask');
             saveButton.textContent = 'Update Task';
             saveButton.onclick = () => updateTask(taskId);
+        })
+        .catch(error => {
+            console.error('Error loading task for edit:', error);
+            showError('Failed to load task for editing');
         });
 }
 
@@ -161,7 +207,12 @@ function updateTask(taskId) {
         },
         body: JSON.stringify(data)
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Failed to update task');
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.status === 'success') {
             const modal = bootstrap.Modal.getInstance(document.getElementById('newTaskModal'));
@@ -173,6 +224,10 @@ function updateTask(taskId) {
             saveButton.textContent = 'Create Task';
             saveButton.onclick = null; // Reset to default handler
         }
+    })
+    .catch(error => {
+        console.error('Error updating task:', error);
+        showError('Failed to update task');
     });
 }
 
@@ -181,26 +236,48 @@ function deleteTask(taskId) {
         fetch(`/api/tasks/${taskId}`, {
             method: 'DELETE'
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to delete task');
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.status === 'success') {
                 const modal = bootstrap.Modal.getInstance(document.getElementById('taskDetailsModal'));
                 modal.hide();
                 loadTasks();
             }
+        })
+        .catch(error => {
+            console.error('Error deleting task:', error);
+            showError('Failed to delete task');
         });
     }
 }
 
-function toggleTaskCompletion(taskId) {
+function toggleTaskCompletion(taskId, event) {
+    if (event) {
+        event.stopPropagation();
+    }
+
     fetch(`/api/tasks/${taskId}/toggle`, {
         method: 'POST'
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Failed to toggle task completion');
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.status === 'success') {
             loadTasks();
         }
+    })
+    .catch(error => {
+        console.error('Error toggling task completion:', error);
+        showError('Failed to update task status');
     });
 }
 
@@ -210,4 +287,17 @@ function getPriorityBadgeClass(priority) {
         case 'important': return 'bg-warning';
         default: return 'bg-secondary';
     }
+}
+
+function showError(message) {
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'alert alert-danger alert-dismissible fade show';
+    errorDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.querySelector('.card-body').prepend(errorDiv);
+    setTimeout(() => {
+        errorDiv.remove();
+    }, 5000);
 }

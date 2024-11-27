@@ -194,21 +194,18 @@ function showGoalDetails(goalId) {
                             ${goal.tasks
                               .map(
                                 (task) => `
-                                <div class="list-group-item" onclick="showTaskDetails(${
-                                  task.id
-                                })">
+                                <div class="list-group-item">
                                     <div class="d-flex justify-content-between align-items-center">
-                                        <div>
-                                            <div class="fw-bold">${
-                                              task.title
-                                            }</div>
-                                            <small class="text-muted">${
-                                              task.description || ""
-                                            }</small>
+                                        <div class="flex-grow-1" onclick="showTaskDetails(${task.id}, event)" style="cursor: pointer;">
+                                            <div class="fw-bold">${task.title}</div>
+                                            <small class="text-muted">${task.description || ""}</small>
                                         </div>
-                                        <span class="badge bg-${getPriorityBadgeClass(
-                                          task.priority
-                                        )}">${task.priority}</span>
+                                        <div class="d-flex align-items-center">
+                                            <input type="checkbox" class="form-check-input me-2" 
+                                                   ${task.completed ? 'checked' : ''} 
+                                                   onclick="toggleTaskCompletion(${task.id}, event)">
+                                            <span class="badge bg-${getPriorityBadgeClass(task.priority)}">${task.priority}</span>
+                                        </div>
                                     </div>
                                 </div>
                             `
