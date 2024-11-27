@@ -225,33 +225,3 @@ canvas {
     background: rgba(var(--bs-primary-rgb), 0.1);
     border-color: rgba(var(--bs-primary-rgb), 0.2);
 }
-
-.cursor-pointer {
-    cursor: pointer;
-}
-
-.task-details-popup {
-    padding: 0.5rem;
-    max-width: 300px;
-}
-
-.task-details-popup h6 {
-    margin-bottom: 0.5rem;
-    color: var(--bs-primary);
-}
-
-.task-details-popup .task-metadata {
-    margin-top: 0.5rem;
-    padding-top: 0.5rem;
-    border-top: 1px solid rgba(var(--bs-secondary-rgb), 0.2);
-}
-
-.task-details-btn {
-    padding: 0.25rem 0.5rem;
-    line-height: 1;
-}
-
-.task-details-btn:hover {
-    background-color: rgba(var(--bs-primary-rgb), 0.1);
-    border-radius: 0.25rem;
-}

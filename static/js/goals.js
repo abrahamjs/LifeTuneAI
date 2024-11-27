@@ -62,42 +62,18 @@ document.addEventListener("DOMContentLoaded", function () {
       }
 
       // Get selected tasks with proper error handling
-      let selectedTasks = [];
-      try {
-        selectedTasks = Array.from(
-          document.querySelectorAll(
-            '#taskSuggestionsList input[type="checkbox"]:checked'
-          )
-        ).map((checkbox) => {
-          const taskElement = checkbox.closest(".task-suggestion-item");
-          if (!taskElement) {
-            throw new Error("Invalid task element structure");
-          }
-          
-          const titleElement = taskElement.querySelector(".fw-bold");
-          const descriptionElement = taskElement.querySelector("small");
-          
-          if (!titleElement) {
-            throw new Error("Task title is missing");
-          }
-          
-          const title = titleElement.textContent.trim();
-          if (!title) {
-            throw new Error("Task title cannot be empty");
-          }
-          
-          return {
-            title: title,
-            description: descriptionElement?.textContent?.trim() || "",
-            priority: taskElement.dataset.priority || "normal",
-            due_date: document.getElementById("goalTargetDate").value
-          };
-        });
-      } catch (error) {
-        errorContainer.textContent = `Error processing tasks: ${error.message}`;
-        errorContainer.classList.remove("d-none");
-        return;
-      }
+      const selectedTasks = Array.from(
+        document.querySelectorAll(
+          '#taskSuggestionsList input[type="checkbox"]:checked'
+        )
+      ).map((checkbox) => {
+        const taskElement = checkbox.closest(".task-suggestion-item");
+        return {
+          title: taskElement.querySelector(".fw-bold").textContent.trim(),
+          description: taskElement.querySelector("small")?.textContent?.trim() || "",
+          priority: taskElement.dataset.priority || "normal"
+        };
+      });
 
       try {
         const response = await fetch("/api/goals", {
@@ -414,41 +390,16 @@ async function suggestTasks(title, description) {
               >
               <label class="form-check-label flex-grow-1" for="task_${btoa(task.title)}">
                 <div class="d-flex justify-content-between align-items-center">
-                  <div class="fw-bold task-title cursor-pointer" role="button" tabindex="0">${task.title}</div>
+                  <div class="fw-bold">${task.title}</div>
                   <span class="badge bg-${getPriorityBadgeClass(task.priority || 'normal')}">${task.priority || 'normal'}</span>
                 </div>
-                <small class="text-muted d-block task-description cursor-pointer" role="button" tabindex="0">${task.description}</small>
+                <small class="text-muted d-block">${task.description}</small>
               </label>
-              <button type="button" class="btn btn-link btn-sm text-primary ms-2 task-details-btn" data-bs-toggle="popover" data-bs-trigger="focus">
-                <i class="bi bi-info-circle"></i>
-              </button>
             </div>
           </div>
         `
       )
       .join("");
-
-    // Initialize popovers for task details
-    const taskDetailBtns = tasksList.querySelectorAll('.task-details-btn');
-    taskDetailBtns.forEach((btn, index) => {
-      const task = sortedTasks[index];
-      const popoverContent = `
-        <div class="task-details-popup">
-          <h6>${task.title}</h6>
-          <p class="text-muted">${task.description || 'No description available'}</p>
-          <div class="task-metadata">
-            <span class="badge bg-${getPriorityBadgeClass(task.priority || 'normal')}">${task.priority || 'normal'}</span>
-            <small class="text-muted ms-2">Suggested task</small>
-          </div>
-        </div>
-      `;
-
-      new bootstrap.Popover(btn, {
-        html: true,
-        content: popoverContent,
-        placement: 'auto'
-      });
-    });
 
     suggestedTasks.classList.remove("d-none");
   } catch (error) {
@@ -465,40 +416,19 @@ async function suggestTasks(title, description) {
 function showTaskDetails(taskId) {
     // Get the goal ID from the current modal
     const goalDetailsContent = document.getElementById('goalDetailsContent');
-    const taskElement = document.querySelector(`[onclick="showTaskDetails(${taskId})"]`);
-    if (!taskElement) return;
+    const goalIdMatch = goalDetailsContent.innerHTML.match(/goal\.id\s*=\s*(\d+)/);
+    if (!goalIdMatch) return;
     
-    // Find the task details from the current goal
-    const taskTitle = taskElement.querySelector('.fw-bold').textContent;
-    const taskDescription = taskElement.querySelector('.text-muted').textContent;
-    const taskPriority = taskElement.querySelector('.badge').textContent;
+    const goalId = goalIdMatch[1];
     
-    // Create popover content
-    const popoverContent = `
-        <div class="task-details-popup">
-            <h6>${taskTitle}</h6>
-            <p class="text-muted">${taskDescription || 'No description available'}</p>
-            <div class="task-metadata">
-                <span class="badge bg-${getPriorityBadgeClass(taskPriority)}">${taskPriority}</span>
-                <small class="text-muted ms-2">Task ID: ${taskId}</small>
-            </div>
-        </div>
-    `;
-    
-    // Remove any existing popovers
-    const existingPopover = bootstrap.Popover.getInstance(taskElement);
-    if (existingPopover) {
-        existingPopover.dispose();
-    }
-    
-    // Create new popover
-    new bootstrap.Popover(taskElement, {
-        html: true,
-        content: popoverContent,
-        trigger: 'focus',
-        placement: 'auto'
-    }).show();
-}
+    // Fetch goal details to get the specific task
+    fetch(`/api/goals/${goalId}`)
+        .then(response => response.json())
+        .then(goal => {
+            const task = goal.tasks.find(t => t.id === taskId);
+            if (!task) return;
+            
+            // Show task details in a popover or tooltip
             const taskElement = document.querySelector(`[onclick="showTaskDetails(${taskId})"]`);
             if (taskElement) {
                 const detailsHtml = `
