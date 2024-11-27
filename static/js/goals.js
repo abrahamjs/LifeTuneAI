@@ -74,7 +74,6 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     });
 });
-
 function loadGoals() {
   fetch("/api/goals")
     .then((response) => response.json())
