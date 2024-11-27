@@ -215,31 +215,64 @@ def suggest_tasks():
 def handle_goals():
     if request.method == 'POST':
         data = request.get_json()
-        goal = Goal(
-            title=data['title'],
-            description=data['description'],
-            target_date=datetime.strptime(data['target_date'], '%Y-%m-%d'),
-            category=data['category'],
-            user_id=current_user.id
-        )
-        db.session.add(goal)
-        db.session.flush()  # This gives us the goal.id
         
-        # Create associated tasks
-        if 'tasks' in data:
-            for task_data in data['tasks']:
-                task = Task(
-                    title=task_data['title'],
-                    description=task_data['description'],
-                    priority='normal',
-                    due_date=goal.target_date,
-                    user_id=current_user.id,
-                    goal_id=goal.id
-                )
-                db.session.add(task)
-        
-        db.session.commit()
-        return jsonify({'status': 'success'})
+        # Validate required fields
+        required_fields = ['title', 'description', 'target_date', 'category']
+        if not all(field in data for field in required_fields):
+            return jsonify({
+                'status': 'error',
+                'message': 'Missing required fields'
+            }), 400
+            
+        try:
+            target_date = datetime.strptime(data['target_date'], '%Y-%m-%d')
+            
+            # Start database transaction
+            goal = Goal(
+                title=data['title'],
+                description=data['description'],
+                target_date=target_date,
+                category=data['category'],
+                user_id=current_user.id
+            )
+            db.session.add(goal)
+            db.session.flush()  # This gives us the goal.id
+            
+            # Create associated tasks
+            if 'tasks' in data:
+                for task_data in data['tasks']:
+                    if not isinstance(task_data, dict) or 'title' not in task_data:
+                        raise ValueError('Invalid task data structure')
+                        
+                    task = Task(
+                        title=task_data['title'],
+                        description=task_data.get('description', ''),
+                        priority=task_data.get('priority', 'normal'),
+                        due_date=target_date,  # Default to goal target date
+                        user_id=current_user.id,
+                        goal_id=goal.id
+                    )
+                    db.session.add(task)
+            
+            db.session.commit()
+            return jsonify({
+                'status': 'success',
+                'goal_id': goal.id
+            })
+            
+        except ValueError as e:
+            db.session.rollback()
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 400
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error creating goal: {str(e)}")
+            return jsonify({
+                'status': 'error',
+                'message': 'An error occurred while creating the goal'
+            }), 500
     
     goals = Goal.query.filter_by(user_id=current_user.id).all()
     return jsonify([{

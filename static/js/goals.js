@@ -29,23 +29,41 @@ document.addEventListener("DOMContentLoaded", function () {
   document
     .getElementById("saveGoal")
     .addEventListener("click", async function () {
+      // Clear previous error messages
+      const errorContainer = document.getElementById("goalFormErrors") || 
+        (() => {
+          const div = document.createElement("div");
+          div.id = "goalFormErrors";
+          div.className = "alert alert-danger d-none";
+          document.getElementById("newGoalForm").prepend(div);
+          return div;
+        })();
+
       const title = document.getElementById("goalTitle").value;
       const description = document.getElementById("goalDescription").value;
       const category = document.getElementById("goalCategory").value;
       const target_date = document.getElementById("goalTargetDate").value;
 
-      // Get selected tasks
+      // Basic validation
+      if (!title || !target_date) {
+        errorContainer.textContent = "Please fill in all required fields";
+        errorContainer.classList.remove("d-none");
+        return;
+      }
+
+      // Get selected tasks with proper error handling
       const selectedTasks = Array.from(
         document.querySelectorAll(
           '#taskSuggestionsList input[type="checkbox"]:checked'
         )
-      ).map((checkbox) => ({
-        title: checkbox.nextElementSibling
-          .querySelector(".fw-bold")
-          .textContent.trim(),
-        description:
-          checkbox.nextElementSibling.querySelector("small").textContent,
-      }));
+      ).map((checkbox) => {
+        const taskElement = checkbox.closest(".task-suggestion-item");
+        return {
+          title: taskElement.querySelector(".fw-bold").textContent.trim(),
+          description: taskElement.querySelector("small")?.textContent?.trim() || "",
+          priority: taskElement.dataset.priority || "normal"
+        };
+      });
 
       try {
         const response = await fetch("/api/goals", {
@@ -62,15 +80,26 @@ document.addEventListener("DOMContentLoaded", function () {
           }),
         });
 
+        const data = await response.json();
+
         if (response.ok) {
           const modal = bootstrap.Modal.getInstance(
             document.getElementById("newGoalModal")
           );
           modal.hide();
           loadGoals();
+          // Clear form
+          document.getElementById("newGoalForm").reset();
+          errorContainer.classList.add("d-none");
+        } else {
+          // Show error message
+          errorContainer.textContent = data.message || "Failed to create goal";
+          errorContainer.classList.remove("d-none");
         }
       } catch (error) {
         console.error("Error saving goal:", error);
+        errorContainer.textContent = "An error occurred while saving the goal";
+        errorContainer.classList.remove("d-none");
       }
     });
 });
