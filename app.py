@@ -309,34 +309,58 @@ def handle_tasks():
 @app.route('/api/tasks/<int:task_id>', methods=['GET', 'DELETE', 'PUT'])
 @login_required_if_enabled
 def manage_task(task_id):
-    task = Task.query.get_or_404(task_id)
-    if task.user_id != current_user.id:
-        return jsonify({'error': 'Unauthorized'}), 403
-    
-    if request.method == 'DELETE':
-        db.session.delete(task)
-        db.session.commit()
-        return jsonify({'status': 'success'})
-    
-    elif request.method == 'PUT':
-        data = request.get_json()
-        task.title = data['title']
-        task.description = data['description']
-        task.priority = data['priority']
-        task.due_date = datetime.strptime(data['due_date'], '%Y-%m-%d')
-        db.session.commit()
-        return jsonify({'status': 'success'})
-    
-    # GET method
-    return jsonify({
-        'id': task.id,
-        'title': task.title,
-        'description': task.description,
-        'priority': task.priority,
-        'completed': task.completed,
-        'created_at': task.created_at.isoformat(),
-        'due_date': task.due_date.isoformat() if task.due_date else None
-    })
+    try:
+        task = Task.query.get(task_id)
+        if not task:
+            return jsonify({'error': 'Task not found'}), 404
+        if task.user_id != current_user.id:
+            return jsonify({'error': 'Unauthorized'}), 403
+        
+        if request.method == 'DELETE':
+            db.session.delete(task)
+            db.session.commit()
+            return jsonify({'status': 'success', 'message': 'Task deleted successfully'})
+        
+        elif request.method == 'PUT':
+            try:
+                data = request.get_json()
+                if not data:
+                    return jsonify({'error': 'No data provided'}), 400
+                
+                required_fields = ['title', 'description', 'priority', 'due_date']
+                missing_fields = [field for field in required_fields if field not in data]
+                if missing_fields:
+                    return jsonify({'error': f'Missing required fields: {", ".join(missing_fields)}'}), 400
+                
+                task.title = data['title']
+                task.description = data['description']
+                task.priority = data['priority']
+                try:
+                    task.due_date = datetime.strptime(data['due_date'], '%Y-%m-%d')
+                except ValueError:
+                    return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+                
+                db.session.commit()
+                return jsonify({'status': 'success', 'message': 'Task updated successfully'})
+            except Exception as e:
+                db.session.rollback()
+                return jsonify({'error': str(e)}), 500
+        
+        # GET method
+        return jsonify({
+            'id': task.id,
+            'title': task.title,
+            'description': task.description,
+            'priority': task.priority,
+            'completed': task.completed,
+            'created_at': task.created_at.isoformat(),
+            'due_date': task.due_date.isoformat() if task.due_date else None,
+            'completed_at': task.completed_at.isoformat() if task.completed_at else None,
+            'goal_id': task.goal_id,
+            'goal_title': task.goal.title if task.goal_id else None
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/tasks/<int:task_id>/toggle', methods=['POST'])
 @login_required_if_enabled
