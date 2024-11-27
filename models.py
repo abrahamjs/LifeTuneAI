@@ -7,11 +7,22 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(64), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256))
+    reset_token = db.Column(db.String(100), unique=True)
+    reset_token_expiry = db.Column(db.DateTime)
     goals = db.relationship('Goal', backref='user', lazy=True)
     tasks = db.relationship('Task', backref='user', lazy=True)
     habits = db.relationship('Habit', backref='user', lazy=True)
     voice_notes = db.relationship('VoiceNote', backref='user', lazy=True)
     analytics = db.relationship('UserAnalytics', backref='user', lazy=True)
+
+    def generate_reset_token(self):
+        """Generate a password reset token that expires in 1 hour"""
+        from secrets import token_urlsafe
+        from datetime import datetime, timedelta
+        self.reset_token = token_urlsafe(32)
+        self.reset_token_expiry = datetime.utcnow() + timedelta(hours=1)
+        db.session.commit()
+        return self.reset_token
 
 class Goal(db.Model):
     id = db.Column(db.Integer, primary_key=True)
