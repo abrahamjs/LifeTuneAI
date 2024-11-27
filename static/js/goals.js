@@ -3,13 +3,23 @@ let goalsChart;
 document.addEventListener("DOMContentLoaded", function () {
   loadGoals();
 
-  // Handle goal title changes to suggest tasks
+  // Handle goal title and description changes to suggest tasks
   document
     .getElementById("goalTitle")
     .addEventListener("blur", async function () {
       const title = this.value;
       const description = document.getElementById("goalDescription").value;
       if (title) {
+        await suggestTasks(title, description);
+      }
+    });
+
+  document
+    .getElementById("goalDescription")
+    .addEventListener("blur", async function () {
+      const title = document.getElementById("goalTitle").value;
+      const description = this.value;
+      if (title && description) {
         await suggestTasks(title, description);
       }
     });
@@ -330,13 +340,22 @@ function getPriorityBadgeClass(priority) {
 
 async function suggestTasks(title, description) {
   try {
+    const target_date = document.getElementById("goalTargetDate").value;
     const response = await fetch("/api/goals/suggest-tasks", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ title, description }),
+      body: JSON.stringify({ 
+        title, 
+        description,
+        target_date,
+      }),
     });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
 
     const data = await response.json();
     const suggestedTasks = document.getElementById("suggestedTasks");
@@ -344,32 +363,40 @@ async function suggestTasks(title, description) {
 
     if (!Array.isArray(data) || data.length === 0) {
       tasksList.innerHTML = `
-                <div class="alert alert-warning">
-                    No task suggestions available. Try adding more details to your goal.
-                </div>
-            `;
+        <div class="alert alert-warning">
+          No task suggestions available. Try adding more details to your goal.
+        </div>
+      `;
       suggestedTasks.classList.remove("d-none");
       return;
     }
 
-    tasksList.innerHTML = data
+    // Sort tasks by priority and timeline
+    const sortedTasks = data.sort((a, b) => {
+      const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3, normal: 4 };
+      return (priorityOrder[a.priority] || 4) - (priorityOrder[b.priority] || 4);
+    });
+
+    tasksList.innerHTML = sortedTasks
       .map(
         (task) => `
-            <div class="list-group-item task-suggestion-item">
-                <div class="form-check d-flex align-items-center">
-                    <input class="form-check-input me-2" type="checkbox" value="" id="task_${btoa(
-                      task.title
-                    )}">
-                    <label class="form-check-label flex-grow-1" for="task_${btoa(
-                      task.title
-                    )}">
-                        <div class="fw-bold">${task.title}</div>
-                        <small class="text-muted d-block">${
-                          task.description
-                        }</small>
-                    </label>
+          <div class="list-group-item task-suggestion-item" data-priority="${task.priority || 'normal'}">
+            <div class="form-check d-flex align-items-center">
+              <input 
+                class="form-check-input me-2" 
+                type="checkbox" 
+                value="" 
+                id="task_${btoa(task.title)}"
+              >
+              <label class="form-check-label flex-grow-1" for="task_${btoa(task.title)}">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div class="fw-bold">${task.title}</div>
+                  <span class="badge bg-${getPriorityBadgeClass(task.priority || 'normal')}">${task.priority || 'normal'}</span>
                 </div>
+                <small class="text-muted d-block">${task.description}</small>
+              </label>
             </div>
+          </div>
         `
       )
       .join("");
@@ -377,10 +404,55 @@ async function suggestTasks(title, description) {
     suggestedTasks.classList.remove("d-none");
   } catch (error) {
     console.error("Error getting task suggestions:", error);
+    const errorMessage = error.message || "An error occurred while generating tasks. Please try again.";
     document.getElementById("taskSuggestionsList").innerHTML = `
-            <div class="alert alert-danger">
-                An error occurred while generating tasks. Please try again.
-            </div>
-        `;
+      <div class="alert alert-danger">
+        ${errorMessage}
+      </div>
+    `;
   }
+}
+
+function showTaskDetails(taskId) {
+    // Get the goal ID from the current modal
+    const goalDetailsContent = document.getElementById('goalDetailsContent');
+    const goalIdMatch = goalDetailsContent.innerHTML.match(/goal\.id\s*=\s*(\d+)/);
+    if (!goalIdMatch) return;
+    
+    const goalId = goalIdMatch[1];
+    
+    // Fetch goal details to get the specific task
+    fetch(`/api/goals/${goalId}`)
+        .then(response => response.json())
+        .then(goal => {
+            const task = goal.tasks.find(t => t.id === taskId);
+            if (!task) return;
+            
+            // Show task details in a popover or tooltip
+            const taskElement = document.querySelector(`[onclick="showTaskDetails(${taskId})"]`);
+            if (taskElement) {
+                const detailsHtml = `
+                    <div class="task-details-popup">
+                        <h6>${task.title}</h6>
+                        <p class="text-muted">${task.description || 'No description available'}</p>
+                        <div class="task-metadata">
+                            <span class="badge bg-${getPriorityBadgeClass(task.priority)}">${task.priority}</span>
+                            <small class="text-muted ms-2">Due: ${new Date(task.due_date).toLocaleDateString()}</small>
+                        </div>
+                    </div>
+                `;
+                
+                // Remove any existing popovers
+                const popover = bootstrap.Popover.getInstance(taskElement);
+                if (popover) popover.dispose();
+                
+                // Create new popover
+                new bootstrap.Popover(taskElement, {
+                    html: true,
+                    content: detailsHtml,
+                    trigger: 'focus',
+                    placement: 'auto'
+                }).show();
+            }
+        });
 }
