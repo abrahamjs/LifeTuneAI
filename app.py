@@ -306,6 +306,50 @@ def handle_tasks():
         'completed': t.completed
     } for t in tasks])
 
+@app.route('/api/tasks/<int:task_id>', methods=['GET', 'DELETE', 'PUT'])
+@login_required_if_enabled
+def manage_task(task_id):
+    task = Task.query.get_or_404(task_id)
+    if task.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    if request.method == 'DELETE':
+        db.session.delete(task)
+        db.session.commit()
+        return jsonify({'status': 'success'})
+    
+    elif request.method == 'PUT':
+        data = request.get_json()
+        task.title = data['title']
+        task.description = data['description']
+        task.priority = data['priority']
+        task.due_date = datetime.strptime(data['due_date'], '%Y-%m-%d')
+        db.session.commit()
+        return jsonify({'status': 'success'})
+    
+    # GET method
+    return jsonify({
+        'id': task.id,
+        'title': task.title,
+        'description': task.description,
+        'priority': task.priority,
+        'completed': task.completed,
+        'created_at': task.created_at.isoformat(),
+        'due_date': task.due_date.isoformat() if task.due_date else None
+    })
+
+@app.route('/api/tasks/<int:task_id>/toggle', methods=['POST'])
+@login_required_if_enabled
+def toggle_task(task_id):
+    task = Task.query.get_or_404(task_id)
+    if task.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    task.completed = not task.completed
+    task.completed_at = datetime.utcnow() if task.completed else None
+    db.session.commit()
+    return jsonify({'status': 'success'})
+
 @app.route('/api/habits', methods=['GET', 'POST'])
 @login_required_if_enabled
 def handle_habits():
