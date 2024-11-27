@@ -63,9 +63,29 @@
         </div>
     </div>
 </div>
+<!-- Task Details Modal -->
+<div class="modal fade" id="taskDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Task Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="taskDetailsContent">
+                <!-- Content will be populated dynamically -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger" id="deleteTask">Delete</button>
+                <button type="button" class="btn btn-primary" id="editTask">Edit</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
+<script src="/static/js/tasks-common.js"></script>
 <script src="/static/js/dashboard.js"></script>
 <script src="/static/js/pomodoro.js"></script>
 {% endblock %}

@@ -70,20 +70,31 @@ function loadTasks() {
         .map(
           (task) => `
                 <div class="task-item mb-2 d-flex align-items-center">
-                    <input type="checkbox" class="form-check-input me-2" 
-                           ${task.completed ? "checked" : ""}>
-                    <span class="task-title ${
-                      task.completed
-                        ? "text-muted text-decoration-line-through"
-                        : ""
-                    }">${task.title}</span>
-                    <span class="badge ms-auto ${getPriorityBadgeClass(
-                      task.priority
-                    )}">${task.priority}</span>
+                    <div class="d-flex justify-content-between align-items-center flex-grow-1">
+                        <div class="d-flex align-items-center flex-grow-1">
+                            <input type="checkbox" class="form-check-input me-2" 
+                                   ${task.completed ? "checked" : ""} 
+                                   onclick="toggleTaskCompletion(${task.id}, event)">
+                            <span class="task-title ${
+                              task.completed
+                                ? "text-muted text-decoration-line-through"
+                                : ""
+                            }" onclick="showTaskDetails(${task.id}, event)" style="cursor: pointer;">${
+            task.title
+          }</span>
+                        </div>
+                        <span class="badge ms-2 ${getPriorityBadgeClass(
+                          task.priority
+                        )}">${task.priority}</span>
+                    </div>
                 </div>
             `
         )
         .join("");
+    })
+    .catch(error => {
+      console.error('Error loading tasks:', error);
+      showError('Failed to load tasks');
     });
 }
 
